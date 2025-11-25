@@ -1,43 +1,63 @@
 <template>
-  <q-layout view="lHh Lpr lFf">
+  <q-layout view="hHh Lpr fFf">
     <q-header elevated>
       <q-toolbar>
-        <q-btn
-          flat
-          dense
-          round
-          icon="menu"
-          aria-label="Menu"
-          @click="toggleLeftDrawer"
-        />
-
         <q-toolbar-title>
-          Quasar App
+          Brew Scheduler
         </q-toolbar-title>
 
-        <div>Quasar v{{ $q.version }}</div>
+        <q-space />
+
+        <div v-if="isAuthenticated" class="row items-center q-gutter-sm">
+          <q-btn
+            flat
+            dense
+            label="Schedule"
+            icon="event"
+            to="/schedule"
+          />
+          <q-btn
+            flat
+            dense
+            label="Templates"
+            icon="description"
+            to="/templates"
+          />
+          <q-btn
+            flat
+            dense
+            label="Dashboard"
+            icon="dashboard"
+            to="/dashboard"
+          />
+        </div>
+
+        <q-space />
+
+        <div v-if="isLoading" class="q-mr-md">
+          <q-spinner size="sm" />
+        </div>
+        <div v-else-if="isAuthenticated" class="row items-center">
+          <span class="q-mr-md">{{ userEmail || username }}</span>
+          <q-btn
+            flat
+            dense
+            label="Logout"
+            icon="logout"
+            @click="handleLogout"
+          />
+        </div>
+        <div v-else>
+          <q-btn
+            flat
+            dense
+            label="Login"
+            icon="login"
+            @click="handleLogin"
+          />
+        </div>
       </q-toolbar>
     </q-header>
-
-    <q-drawer
-      v-model="leftDrawerOpen"
-      show-if-above
-      bordered
-    >
-      <q-list>
-        <q-item-label
-          header
-        >
-          Essential Links
-        </q-item-label>
-
-        <EssentialLink
-          v-for="link in linksList"
-          :key="link.title"
-          v-bind="link"
-        />
-      </q-list>
-    </q-drawer>
 
     <q-page-container>
       <router-view />
@@ -46,57 +66,28 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import EssentialLink from 'components/EssentialLink.vue'
+import { onMounted } from 'vue'
+import { useAuth } from 'src/composables/useAuth'
 
-const linksList = [
-  {
-    title: 'Docs',
-    caption: 'quasar.dev',
-    icon: 'school',
-    link: 'https://quasar.dev'
-  },
-  {
-    title: 'Github',
-    caption: 'github.com/quasarframework',
-    icon: 'code',
-    link: 'https://github.com/quasarframework'
-  },
-  {
-    title: 'Discord Chat Channel',
-    caption: 'chat.quasar.dev',
-    icon: 'chat',
-    link: 'https://chat.quasar.dev'
-  },
-  {
-    title: 'Forum',
-    caption: 'forum.quasar.dev',
-    icon: 'record_voice_over',
-    link: 'https://forum.quasar.dev'
-  },
-  {
-    title: 'Twitter',
-    caption: '@quasarframework',
-    icon: 'rss_feed',
-    link: 'https://twitter.quasar.dev'
-  },
-  {
-    title: 'Facebook',
-    caption: '@QuasarFramework',
-    icon: 'public',
-    link: 'https://facebook.quasar.dev'
-  },
-  {
-    title: 'Quasar Awesome',
-    caption: 'Community Quasar projects',
-    icon: 'favorite',
-    link: 'https://awesome.quasar.dev'
+const { isAuthenticated, isLoading, userEmail, username, checkAuthState, login, logout } = useAuth()
+
+onMounted(async () => {
+  await checkAuthState()
+})
+
+const handleLogin = async () => {
+  try {
+    await login()
+  } catch (error) {
+    console.error('Login error:', error)
   }
-]
+}
 
-const leftDrawerOpen = ref(false)
-
-function toggleLeftDrawer () {
-  leftDrawerOpen.value = !leftDrawerOpen.value
+const handleLogout = async () => {
+  try {
+    await logout()
+  } catch (error) {
+    console.error('Logout error:', error)
+  }
 }
 </script>
