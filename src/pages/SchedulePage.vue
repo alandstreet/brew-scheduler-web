@@ -71,6 +71,15 @@
                 :rules="[val => val !== null && val !== undefined || 'Priority is required']"
               />
               <q-input
+                ref="targetStartDateInput"
+                v-model="targetStartDate"
+                label="Target Start Date"
+                outlined
+                dense
+                type="date"
+                class="q-mt-sm"
+              />
+              <q-input
                 ref="targetDateInput"
                 v-model="targetCompletionDate"
                 label="Target Completion Date"
@@ -170,6 +179,10 @@
                     <div class="detail-row">
                       <span class="detail-label">Min Fermentation:</span>
                       <span>{{ beer.min_fermentation_days }} days</span>
+                    </div>
+                    <div v-if="beer.target_start_date" class="detail-row">
+                      <span class="detail-label">Target Start:</span>
+                      <span>{{ beer.target_start_date }}</span>
                     </div>
                     <div v-if="beer.target_completion_date" class="detail-row">
                       <span class="detail-label">Target Completion:</span>
@@ -315,10 +328,12 @@ const selectedTemplate = ref(null)
 const batchId = ref('')
 const minFermentationDays = ref(null)
 const priority = ref(null)
+const targetStartDate = ref(null)
 const targetCompletionDate = ref(null)
 const batchIdInput = ref(null)
 const minFermentationDaysInput = ref(null)
 const priorityInput = ref(null)
+const targetStartDateInput = ref(null)
 const targetDateInput = ref(null)
 const loading = ref(false)
 const creating = ref(false)
@@ -476,6 +491,7 @@ const createBeerFromTemplate = async () => {
       volume_hl: selectedTemplate.value.volume_hl,
       priority: priority.value,
       min_fermentation_days: minFermentationDays.value,
+      target_start_date: targetStartDate.value || null,
       target_completion_date: targetCompletionDate.value || null
     }
 
@@ -488,14 +504,17 @@ const createBeerFromTemplate = async () => {
       icon: 'local_drink'
     })
 
-    // Clear fields for next beer
+    // Clear fields and hide form
+    selectedTemplate.value = null
     batchId.value = ''
     minFermentationDays.value = null
     priority.value = null
+    targetStartDate.value = null
     targetCompletionDate.value = null
     batchIdInput.value?.resetValidation()
     minFermentationDaysInput.value?.resetValidation()
     priorityInput.value?.resetValidation()
+    targetStartDateInput.value?.resetValidation()
     targetDateInput.value?.resetValidation()
 
     // Reload beers to update the list and calendar
