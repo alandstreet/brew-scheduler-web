@@ -233,14 +233,38 @@
           <!-- Header Row -->
           <div class="schedule-header">Date</div>
           <div class="schedule-header">Brewhouse</div>
-          <div class="schedule-header">F6</div>
-          <div class="schedule-header">F5</div>
-          <div class="schedule-header">F4</div>
-          <div class="schedule-header">F3</div>
-          <div class="schedule-header">F2</div>
-          <div class="schedule-header">F1</div>
-          <div class="schedule-header">B1</div>
-          <div class="schedule-header">B2</div>
+          <div class="schedule-header">
+            <div>F6</div>
+            <div class="volume-label">20hl</div>
+          </div>
+          <div class="schedule-header">
+            <div>F5</div>
+            <div class="volume-label">20hl</div>
+          </div>
+          <div class="schedule-header">
+            <div>F4</div>
+            <div class="volume-label">20hl</div>
+          </div>
+          <div class="schedule-header">
+            <div>F3</div>
+            <div class="volume-label">20hl</div>
+          </div>
+          <div class="schedule-header">
+            <div>F2</div>
+            <div class="volume-label">10hl</div>
+          </div>
+          <div class="schedule-header">
+            <div>F1</div>
+            <div class="volume-label">10hl</div>
+          </div>
+          <div class="schedule-header">
+            <div>B1</div>
+            <div class="volume-label">10hl</div>
+          </div>
+          <div class="schedule-header">
+            <div>B2</div>
+            <div class="volume-label">20hl</div>
+          </div>
           <!-- Date Rows -->
           <template v-for="day in scheduleDays" :key="day.date">
             <!-- Date Cell -->
@@ -693,6 +717,13 @@ onMounted(async () => {
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+.volume-label {
+  font-size: 10px;
+  font-weight: 400;
+  color: #777;
+  margin-top: 2px;
 }
 
 .schedule-cell {
