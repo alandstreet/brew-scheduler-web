@@ -174,7 +174,14 @@
                     </div>
                     <div class="detail-row">
                       <span class="detail-label">Priority:</span>
-                      <span>{{ beer.priority }}</span>
+                      <q-select
+                        :model-value="beer.priority"
+                        :options="[1, 2, 3]"
+                        dense
+                        outlined
+                        style="max-width: 80px;"
+                        @update:model-value="(val) => updateBeerPriority(beer, val)"
+                      />
                     </div>
                     <div class="detail-row">
                       <span class="detail-label">Min Fermentation:</span>
@@ -651,6 +658,32 @@ const deleteBeer = async (beerId) => {
     $q.notify({
       type: 'negative',
       message: 'Failed to delete beer',
+      caption: error.response?.data?.message || error.message
+    })
+  }
+}
+
+const updateBeerPriority = async (beer, newPriority) => {
+  try {
+    const updatedBeer = {
+      ...beer,
+      priority: newPriority
+    }
+
+    await beersService.update(beer.beer_id, updatedBeer)
+
+    $q.notify({
+      type: 'positive',
+      message: 'Priority updated successfully',
+      icon: 'check'
+    })
+
+    // Reload beers to update the list
+    await loadBeers()
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to update priority',
       caption: error.response?.data?.message || error.message
     })
   }
