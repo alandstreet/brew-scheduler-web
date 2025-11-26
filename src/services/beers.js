@@ -4,10 +4,24 @@ const BEERS_ENDPOINT = '/api/beers'
 
 export const beersService = {
   /**
-   * Get all beers
-   * @returns {Promise<Array>} List of beers
+   * Get all beers with their schedules
+   * @returns {Promise<Array>} List of beer objects (extracted from beer+schedule pairs)
    */
   async getAll() {
+    const response = await apiClient.get(BEERS_ENDPOINT)
+    const data = response.data.beers || response.data
+    // API returns array of {beer, schedule} objects - extract just the beer objects
+    if (Array.isArray(data) && data.length > 0 && data[0].beer) {
+      return data.map(item => item.beer)
+    }
+    return data
+  },
+
+  /**
+   * Get all beers with their schedule data
+   * @returns {Promise<Array>} List of {beer, schedule} objects
+   */
+  async getAllWithSchedules() {
     const response = await apiClient.get(BEERS_ENDPOINT)
     return response.data.beers || response.data
   },

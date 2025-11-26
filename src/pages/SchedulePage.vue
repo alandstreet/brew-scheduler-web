@@ -133,7 +133,8 @@
                   <div
                     class="color-indicator"
                     :style="{ backgroundColor: getBeerColor(beer.beer_id) }"
-                  ></div>
+                  >
+                  </div>
                 </q-item-section>
                 <q-item-section>
                   <q-item-label>{{ beer.name }}</q-item-label>
@@ -185,7 +186,16 @@
                     </div>
                     <div class="detail-row">
                       <span class="detail-label">Min Fermentation:</span>
-                      <span>{{ beer.min_fermentation_days }} days</span>
+                      <q-input
+                        :model-value="beer.min_fermentation_days"
+                        type="number"
+                        suffix="days"
+                        dense
+                        outlined
+                        style="max-width: 120px;"
+                        :rules="[val => val >= 0 || 'Must be 0 or greater']"
+                        @change="(val) => updateBeerMinFermentation(beer, val.target.value)"
+                      />
                     </div>
                     <div v-if="beer.target_start_date" class="detail-row">
                       <span class="detail-label">Target Start:</span>
@@ -684,6 +694,43 @@ const updateBeerPriority = async (beer, newPriority) => {
     $q.notify({
       type: 'negative',
       message: 'Failed to update priority',
+      caption: error.response?.data?.message || error.message
+    })
+  }
+}
+
+const updateBeerMinFermentation = async (beer, newMinFermentationDays) => {
+  try {
+    const minFermentationDays = Number(newMinFermentationDays)
+
+    if (isNaN(minFermentationDays) || minFermentationDays < 0) {
+      $q.notify({
+        type: 'negative',
+        message: 'Invalid fermentation days',
+        caption: 'Must be 0 or greater'
+      })
+      return
+    }
+
+    const updatedBeer = {
+      ...beer,
+      min_fermentation_days: minFermentationDays
+    }
+
+    await beersService.update(beer.beer_id, updatedBeer)
+
+    $q.notify({
+      type: 'positive',
+      message: 'Min fermentation days updated successfully',
+      icon: 'check'
+    })
+
+    // Reload beers to update the list
+    await loadBeers()
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to update min fermentation days',
       caption: error.response?.data?.message || error.message
     })
   }
