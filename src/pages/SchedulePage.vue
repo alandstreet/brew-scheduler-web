@@ -122,20 +122,23 @@
             <q-spinner color="primary" size="md" />
           </div>
 
-          <q-list v-else-if="beers.length > 0" bordered separator>
+          <q-list v-else-if="beers.length > 0">
             <q-expansion-item
+              dense
               v-for="beer in beers"
               :key="beer.beer_id"
               expand-separator
+              class="color-indicator"
+              :style="{ backgroundColor: getBeerColor(beer.beer_id) }"
             >
               <template v-slot:header>
-                <q-item-section avatar>
-                  <div
-                    class="color-indicator"
-                    :style="{ backgroundColor: getBeerColor(beer.beer_id) }"
-                  >
-                  </div>
-                </q-item-section>
+<!--                <q-item-section avatar>-->
+<!--                  <div-->
+<!--                    class="color-indicator"-->
+<!--                    :style="{ backgroundColor: getBeerColor(beer.beer_id) }"-->
+<!--                  >-->
+<!--                  </div>-->
+<!--                </q-item-section>-->
                 <q-item-section>
                   <q-item-label>{{ beer.name }}</q-item-label>
                   <q-item-label caption>{{ beer.batch_id }}</q-item-label>
@@ -892,11 +895,8 @@ onMounted(async () => {
 }
 
 .color-indicator {
-  width: 32px;
-  height: 32px;
   border-radius: 4px;
   border: 2px solid white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .beer-details {
