@@ -124,7 +124,6 @@
 
           <q-list v-else-if="beers.length > 0">
             <q-expansion-item
-              dense
               v-for="beer in beers"
               :key="beer.beer_id"
               expand-separator
@@ -174,7 +173,16 @@
                     </div>
                     <div class="detail-row">
                       <span class="detail-label">Volume:</span>
-                      <span>{{ beer.volume_hl }} hl</span>
+                      <q-input
+                        :model-value="beer.volume_hl"
+                        type="number"
+                        suffix="hl"
+                        dense
+                        outlined
+                        style="max-width: 100px;"
+                        :rules="[val => val > 0 || 'Must be greater than 0']"
+                        @update:model-value="(val) => updateBeerVolume(beer, val)"
+                      />
                     </div>
                     <div class="detail-row">
                       <span class="detail-label">Priority:</span>
@@ -200,13 +208,27 @@
                         @change="(val) => updateBeerMinFermentation(beer, val.target.value)"
                       />
                     </div>
-                    <div v-if="beer.target_start_date" class="detail-row">
+                    <div class="detail-row">
                       <span class="detail-label">Target Start:</span>
-                      <span>{{ beer.target_start_date }}</span>
+                      <q-input
+                        :model-value="beer.target_start_date || ''"
+                        type="date"
+                        dense
+                        outlined
+                        style="max-width: 150px;"
+                        @update:model-value="(val) => updateBeerTargetStartDate(beer, val)"
+                      />
                     </div>
-                    <div v-if="beer.target_completion_date" class="detail-row">
+                    <div class="detail-row">
                       <span class="detail-label">Target Completion:</span>
-                      <span>{{ beer.target_completion_date }}</span>
+                      <q-input
+                        :model-value="beer.target_completion_date || ''"
+                        type="date"
+                        dense
+                        outlined
+                        style="max-width: 150px;"
+                        @update:model-value="(val) => updateBeerTargetCompletionDate(beer, val)"
+                      />
                     </div>
                   </div>
                 </q-card-section>
@@ -676,6 +698,42 @@ const deleteBeer = async (beerId) => {
   }
 }
 
+const updateBeerVolume = async (beer, newVolume) => {
+  try {
+    const volume = Number(newVolume)
+
+    if (isNaN(volume) || volume <= 0) {
+      $q.notify({
+        type: 'negative',
+        message: 'Invalid volume',
+        caption: 'Must be greater than 0'
+      })
+      return
+    }
+
+    const updatedBeer = {
+      ...beer,
+      volume_hl: volume
+    }
+
+    await beersService.update(beer.beer_id, updatedBeer)
+
+    $q.notify({
+      type: 'positive',
+      message: 'Volume updated successfully',
+      icon: 'check'
+    })
+
+    await loadBeers()
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to update volume',
+      caption: error.response?.data?.message || error.message
+    })
+  }
+}
+
 const updateBeerPriority = async (beer, newPriority) => {
   try {
     const updatedBeer = {
@@ -734,6 +792,56 @@ const updateBeerMinFermentation = async (beer, newMinFermentationDays) => {
     $q.notify({
       type: 'negative',
       message: 'Failed to update min fermentation days',
+      caption: error.response?.data?.message || error.message
+    })
+  }
+}
+
+const updateBeerTargetStartDate = async (beer, newDate) => {
+  try {
+    const updatedBeer = {
+      ...beer,
+      target_start_date: newDate || null
+    }
+
+    await beersService.update(beer.beer_id, updatedBeer)
+
+    $q.notify({
+      type: 'positive',
+      message: 'Target start date updated successfully',
+      icon: 'check'
+    })
+
+    await loadBeers()
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to update target start date',
+      caption: error.response?.data?.message || error.message
+    })
+  }
+}
+
+const updateBeerTargetCompletionDate = async (beer, newDate) => {
+  try {
+    const updatedBeer = {
+      ...beer,
+      target_completion_date: newDate || null
+    }
+
+    await beersService.update(beer.beer_id, updatedBeer)
+
+    $q.notify({
+      type: 'positive',
+      message: 'Target completion date updated successfully',
+      icon: 'check'
+    })
+
+    await loadBeers()
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to update target completion date',
       caption: error.response?.data?.message || error.message
     })
   }
