@@ -381,7 +381,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
-import { v4 as uuidv4 } from 'uuid'
 import { beerTemplatesService } from 'src/services/beerTemplates'
 import { beersService } from 'src/services/beers'
 import { apiClient } from 'src/config/api'
@@ -531,7 +530,17 @@ const loadBeerTemplates = async () => {
 const loadBeers = async () => {
   loadingBeers.value = true
   try {
-    beers.value = await beersService.getAll()
+    const loadedBeers = await beersService.getAll()
+    beers.value = loadedBeers
+
+    // Extract tasks from all beers into scheduledTasks
+    const allTasks = []
+    for (const beer of loadedBeers) {
+      if (beer.tasks && Array.isArray(beer.tasks)) {
+        allTasks.push(...beer.tasks)
+      }
+    }
+    scheduledTasks.value = allTasks
   } catch (error) {
     $q.notify({
       type: 'negative',
@@ -548,9 +557,8 @@ const createBeerFromTemplate = async () => {
 
   creating.value = true
   try {
-    // Create beer data from template
+    // Create beer data from template (beer_id generated server-side)
     const beerData = {
-      beer_id: uuidv4(),
       beer_template_id: selectedTemplate.value.beer_template_id,
       name: selectedTemplate.value.beer_name,
       batch_id: batchId.value,
@@ -609,14 +617,27 @@ const getBeerColor = (beerId) => {
 const scheduleBeers = async () => {
   scheduling.value = true
   try {
+    // Trigger re-scheduling on the server
     const response = await apiClient.post('/api/schedule', {
       beers: beers.value
     })
 
-    console.log('Schedule response:', response.data)
-
-    // Store the scheduled tasks
-    scheduledTasks.value = response.data.schedule.tasks
+    // Extract tasks from the schedule response (schedule.beers contains beers with tasks)
+    const scheduledBeers = response.data.schedule?.beers || []
+    const allTasks = []
+    for (const beer of scheduledBeers) {
+      if (beer.tasks && Array.isArray(beer.tasks)) {
+        // Add beer_id and beer_name to each task for display
+        for (const task of beer.tasks) {
+          allTasks.push({
+            ...task,
+            beer_id: beer.beer_id,
+            beer_name: beer.name
+          })
+        }
+      }
+    }
+    scheduledTasks.value = allTasks
 
     $q.notify({
       type: 'positive',
