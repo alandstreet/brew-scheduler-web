@@ -269,6 +269,25 @@
                       />
                     </div>
                   </div>
+
+                  <!-- Scheduled Tasks -->
+                  <div v-if="getTasksForBeer(beer.beer_id).length > 0" class="q-mt-md">
+                    <div class="text-subtitle2 q-mb-sm">Scheduled Tasks</div>
+                    <div
+                      v-for="task in getTasksForBeer(beer.beer_id)"
+                      :key="`${beer.beer_id}-${task.task_type}`"
+                      class="task-row"
+                    >
+                      <span class="task-type-label">{{ task.task_type }}</span>
+                      <q-toggle
+                        :model-value="task.locked || false"
+                        label="Pin"
+                        dense
+                        size="sm"
+                        @update:model-value="(val) => onPinTask(beer, task, val)"
+                      />
+                    </div>
+                  </div>
                 </q-card-section>
               </q-card>
             </q-expansion-item>
@@ -365,7 +384,7 @@
               class="schedule-cell tank-cell"
               :class="getCellClasses(day, 'Brewhouse')"
               :style="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 ?
-                { backgroundColor: getBeerColor(getScheduledItemsForTank(day.date, 'Brewhouse')[0].beer_id) } : {}"
+                { backgroundColor: getBeerColor(getScheduledItemsForTank(day.date, 'Brewhouse')[0].beer_id, getScheduledItemsForTank(day.date, 'Brewhouse')[0].locked) } : {}"
               @click="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 ?
                 viewScheduleItem(getScheduledItemsForTank(day.date, 'Brewhouse')[0]) : null"
             >
@@ -386,7 +405,7 @@
               class="schedule-cell tank-cell"
               :class="getCellClasses(day, tank)"
               :style="getScheduledItemsForTank(day.date, tank).length > 0 ?
-                { backgroundColor: getBeerColor(getScheduledItemsForTank(day.date, tank)[0].beer_id) } : {}"
+                { backgroundColor: getBeerColor(getScheduledItemsForTank(day.date, tank)[0].beer_id, getScheduledItemsForTank(day.date, tank)[0].locked) } : {}"
               @click="getScheduledItemsForTank(day.date, tank).length > 0 ?
                 viewScheduleItem(getScheduledItemsForTank(day.date, tank)[0]) : null"
             >
@@ -407,7 +426,7 @@
           v-show="isCanningDay(day.date)"
           :key="'canning-' + day.date"
           class="canning-day-overlay"
-          :style="{ top: `calc(${index} * 36px + 58px)` }"
+          :style="{ top: `calc(${index} * 36px + 57px)` }"
         ></div>
         </div>
       </div>
@@ -422,6 +441,7 @@ import { useQuasar } from 'quasar'
 import { beerTemplatesService } from 'src/services/beerTemplates'
 import { beersService } from 'src/services/beers'
 import { canningDaysService } from 'src/services/canningDays'
+import { tasksService } from 'src/services/tasks'
 import { apiClient } from 'src/config/api'
 
 const $q = useQuasar()
@@ -646,36 +666,39 @@ const createBeerFromTemplate = async () => {
   }
 }
 
-// High-contrast color palette for distinguishing beer batches
-const beerColorPalette = [
-  '#E53935', // Red
-  '#1E88E5', // Blue
-  '#43A047', // Green
-  '#FB8C00', // Orange
-  '#8E24AA', // Purple
-  '#00ACC1', // Cyan
-  '#FFB300', // Amber
-  '#6D4C41', // Brown
-  '#D81B60', // Pink
-  '#3949AB', // Indigo
-  '#00897B', // Teal
-  '#7CB342', // Light Green
-  '#F4511E', // Deep Orange
-  '#5E35B1', // Deep Purple
-  '#039BE5', // Light Blue
-  '#C0CA33'  // Lime
+// High-contrast color palette for distinguishing beer batches (RGB values)
+const beerColorPaletteRGB = [
+  [229, 57, 53],    // Red
+  [30, 136, 229],   // Blue
+  [67, 160, 71],    // Green
+  [251, 140, 0],    // Orange
+  [142, 36, 170],   // Purple
+  [0, 172, 193],    // Cyan
+  [255, 179, 0],    // Amber
+  [109, 76, 65],    // Brown
+  [216, 27, 96],    // Pink
+  [57, 73, 171],    // Indigo
+  [0, 137, 123],    // Teal
+  [124, 179, 66],   // Light Green
+  [244, 81, 30],    // Deep Orange
+  [94, 53, 177],    // Deep Purple
+  [3, 155, 229],    // Light Blue
+  [192, 202, 51]    // Lime
 ]
 
-// Map to store consistent beer-to-color assignments
+// Map to store consistent beer-to-color index assignments
 const beerColorMap = new Map()
 
-const getBeerColor = (beerId) => {
+const getBeerColor = (beerId, locked = false) => {
   if (!beerColorMap.has(beerId)) {
-    // Assign next available color from palette
-    const colorIndex = beerColorMap.size % beerColorPalette.length
-    beerColorMap.set(beerId, beerColorPalette[colorIndex])
+    // Assign next available color index from palette
+    const colorIndex = beerColorMap.size % beerColorPaletteRGB.length
+    beerColorMap.set(beerId, colorIndex)
   }
-  return beerColorMap.get(beerId)
+  const colorIndex = beerColorMap.get(beerId)
+  const [r, g, b] = beerColorPaletteRGB[colorIndex]
+  const opacity = locked ? 0.4 : 0.2
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`
 }
 
 const scheduleBeers = async () => {
@@ -771,6 +794,77 @@ const getTaskPosition = (date, task) => {
 const shouldShowLabel = (date, task) => {
   const position = getTaskPosition(date, task)
   return position.isMiddle || position.isSingle
+}
+
+// Get tasks for a specific beer
+const getTasksForBeer = (beerId) => {
+  return scheduledTasks.value.filter(task => task.beer_id === beerId)
+}
+
+// Handle pin toggle for a task
+const onPinTask = async (beer, task, pinned) => {
+  try {
+    if (pinned) {
+      // Create a locked task
+      const createdTask = await tasksService.create({
+        beer_id: beer.beer_id,
+        beer_name: beer.name,
+        task_type: task.task_type,
+        start_day: task.start_day,
+        start_date: task.start_date,
+        duration: task.duration,
+        end_day: task.end_day,
+        end_date: task.end_date,
+        resource: task.resource,
+        volume_hl: beer.volume_hl
+      })
+
+      // Update the task in scheduledTasks with the new task_id and locked status
+      const taskIndex = scheduledTasks.value.findIndex(
+        t => t.beer_id === beer.beer_id && t.task_type === task.task_type
+      )
+      if (taskIndex !== -1) {
+        scheduledTasks.value[taskIndex] = {
+          ...scheduledTasks.value[taskIndex],
+          task_id: createdTask.task_id,
+          locked: true
+        }
+      }
+
+      $q.notify({
+        type: 'positive',
+        message: 'Task pinned',
+        caption: `${task.task_type} for ${beer.name}`,
+        icon: 'push_pin'
+      })
+    } else {
+      // Delete the task
+      if (task.task_id) {
+        await tasksService.delete(task.task_id)
+
+        // Remove the task from scheduledTasks
+        const taskIndex = scheduledTasks.value.findIndex(
+          t => t.beer_id === beer.beer_id && t.task_type === task.task_type
+        )
+        if (taskIndex !== -1) {
+          scheduledTasks.value.splice(taskIndex, 1)
+        }
+
+        $q.notify({
+          type: 'positive',
+          message: 'Task unpinned',
+          caption: `${task.task_type} for ${beer.name}`,
+          icon: 'push_pin'
+        })
+      }
+    }
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: pinned ? 'Failed to pin task' : 'Failed to unpin task',
+      caption: error.response?.data?.message || error.message
+    })
+  }
 }
 
 // Get CSS classes for a cell based on day and task position
@@ -1203,9 +1297,8 @@ onMounted(async () => {
 }
 
 .task-info {
-  color: white;
+  color: #333;
   text-align: center;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   width: 100%;
   padding: 2px;
 }
@@ -1222,7 +1315,7 @@ onMounted(async () => {
 .task-type {
   font-size: 9px;
   line-height: 1.2;
-  opacity: 0.9;
+  color: #666;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1249,6 +1342,21 @@ onMounted(async () => {
 .detail-label {
   font-weight: 600;
   color: #555;
+}
+
+.task-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.task-type-label {
+  font-size: 13px;
+  text-transform: capitalize;
 }
 
 .canning-day-overlay {
