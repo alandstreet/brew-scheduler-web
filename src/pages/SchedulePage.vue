@@ -335,7 +335,7 @@
                 v-if="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 && shouldShowLabel(day.date, getScheduledItemsForTank(day.date, 'Brewhouse')[0])"
                 class="task-info"
               >
-                <div class="task-name">{{ getScheduledItemsForTank(day.date, 'Brewhouse')[0].beer_name }}</div>
+                <div class="task-name">{{ getScheduledItemsForTank(day.date, 'Brewhouse')[0].beer_name }} <span v-if="getScheduledItemsForTank(day.date, 'Brewhouse')[0].batch_id" class="batch-id"> {{ getScheduledItemsForTank(day.date, 'Brewhouse')[0].batch_id }}</span></div>
                 <div class="task-type">{{ getScheduledItemsForTank(day.date, 'Brewhouse')[0].task_type }}</div>
               </div>
             </div>
@@ -356,7 +356,7 @@
                 v-if="getScheduledItemsForTank(day.date, tank).length > 0 && shouldShowLabel(day.date, getScheduledItemsForTank(day.date, tank)[0])"
                 class="task-info"
               >
-                <div class="task-name">{{ getScheduledItemsForTank(day.date, tank)[0].beer_name }}</div>
+                <div class="task-name">{{ getScheduledItemsForTank(day.date, tank)[0].beer_name }} <span v-if="getScheduledItemsForTank(day.date, tank)[0].batch_id" class="batch-id"> {{ getScheduledItemsForTank(day.date, tank)[0].batch_id }}</span></div>
                 <div class="task-type">{{ getScheduledItemsForTank(day.date, tank)[0].task_type }}</div>
               </div>
             </div>
@@ -564,7 +564,7 @@ const createBeerFromTemplate = async () => {
     $q.notify({
       type: 'positive',
       message: 'Beer created successfully',
-      caption: `${beerData.name} (${beerData.batch_id})`,
+      caption: `${beerData.name} ${beerData.batch_id}`,
       icon: 'local_drink'
     })
 
@@ -639,12 +639,13 @@ const scheduleBeers = async () => {
     const allTasks = []
     for (const beer of scheduledBeers) {
       if (beer.tasks && Array.isArray(beer.tasks)) {
-        // Add beer_id and beer_name to each task for display
+        // Add beer_id, beer_name, and batch_id to each task for display
         for (const task of beer.tasks) {
           allTasks.push({
             ...task,
             beer_id: beer.beer_id,
-            beer_name: beer.name
+            beer_name: beer.name,
+            batch_id: beer.batch_id
           })
         }
       }
