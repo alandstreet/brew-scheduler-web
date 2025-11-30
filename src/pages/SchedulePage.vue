@@ -604,14 +604,36 @@ const createBeerFromTemplate = async () => {
   }
 }
 
+// High-contrast color palette for distinguishing beer batches
+const beerColorPalette = [
+  '#E53935', // Red
+  '#1E88E5', // Blue
+  '#43A047', // Green
+  '#FB8C00', // Orange
+  '#8E24AA', // Purple
+  '#00ACC1', // Cyan
+  '#FFB300', // Amber
+  '#6D4C41', // Brown
+  '#D81B60', // Pink
+  '#3949AB', // Indigo
+  '#00897B', // Teal
+  '#7CB342', // Light Green
+  '#F4511E', // Deep Orange
+  '#5E35B1', // Deep Purple
+  '#039BE5', // Light Blue
+  '#C0CA33'  // Lime
+]
+
+// Map to store consistent beer-to-color assignments
+const beerColorMap = new Map()
+
 const getBeerColor = (beerId) => {
-  // Generate a consistent color based on beer_id using hash
-  let hash = 0
-  for (let i = 0; i < beerId.length; i++) {
-    hash = beerId.charCodeAt(i) + ((hash << 5) - hash)
+  if (!beerColorMap.has(beerId)) {
+    // Assign next available color from palette
+    const colorIndex = beerColorMap.size % beerColorPalette.length
+    beerColorMap.set(beerId, beerColorPalette[colorIndex])
   }
-  const hue = Math.abs(hash) % 360
-  return `hsl(${hue}, 70%, 65%)`
+  return beerColorMap.get(beerId)
 }
 
 const scheduleBeers = async () => {
