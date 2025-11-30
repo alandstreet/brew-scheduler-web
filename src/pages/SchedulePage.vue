@@ -324,20 +324,15 @@
             <!-- Brewhouse Cell -->
             <div
               class="schedule-cell tank-cell"
-              :class="{
-                'today': day.isToday,
-                'weekend': day.isWeekend,
-                'holiday': day.isHoliday,
-                'has-task': getScheduledItemsForTank(day.date, 'Brewhouse').length > 0
-              }"
+              :class="getCellClasses(day, 'Brewhouse')"
               :style="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 ?
                 { backgroundColor: getBeerColor(getScheduledItemsForTank(day.date, 'Brewhouse')[0].beer_id) } : {}"
               @click="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 ?
                 viewScheduleItem(getScheduledItemsForTank(day.date, 'Brewhouse')[0]) : null"
             >
-              <!-- Task info overlay -->
+              <!-- Task info overlay - only show on middle day -->
               <div
-                v-if="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0"
+                v-if="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 && shouldShowLabel(day.date, getScheduledItemsForTank(day.date, 'Brewhouse')[0])"
                 class="task-info"
               >
                 <div class="task-name">{{ getScheduledItemsForTank(day.date, 'Brewhouse')[0].beer_name }}</div>
@@ -350,20 +345,15 @@
               v-for="tank in tanks"
               :key="`${day.date}-${tank}`"
               class="schedule-cell tank-cell"
-              :class="{
-                'today': day.isToday,
-                'weekend': day.isWeekend,
-                'holiday': day.isHoliday,
-                'has-task': getScheduledItemsForTank(day.date, tank).length > 0
-              }"
+              :class="getCellClasses(day, tank)"
               :style="getScheduledItemsForTank(day.date, tank).length > 0 ?
                 { backgroundColor: getBeerColor(getScheduledItemsForTank(day.date, tank)[0].beer_id) } : {}"
               @click="getScheduledItemsForTank(day.date, tank).length > 0 ?
                 viewScheduleItem(getScheduledItemsForTank(day.date, tank)[0]) : null"
             >
-              <!-- Task info overlay -->
+              <!-- Task info overlay - only show on middle day -->
               <div
-                v-if="getScheduledItemsForTank(day.date, tank).length > 0"
+                v-if="getScheduledItemsForTank(day.date, tank).length > 0 && shouldShowLabel(day.date, getScheduledItemsForTank(day.date, tank)[0])"
                 class="task-info"
               >
                 <div class="task-name">{{ getScheduledItemsForTank(day.date, tank)[0].beer_name }}</div>
@@ -701,6 +691,58 @@ const getScheduledItemsForTank = (date, resource) => {
   })
 }
 
+// Get task position info for a given date (first, middle, last, or single day)
+const getTaskPosition = (date, task) => {
+  const taskStart = new Date(task.start_date)
+  const taskEnd = new Date(task.end_date)
+  const currentDate = new Date(date)
+
+  taskStart.setHours(0, 0, 0, 0)
+  taskEnd.setHours(0, 0, 0, 0)
+  currentDate.setHours(0, 0, 0, 0)
+
+  const isFirst = currentDate.getTime() === taskStart.getTime()
+  const isLast = currentDate.getTime() === taskEnd.getTime()
+
+  // Calculate middle day for label placement
+  const totalDays = Math.round((taskEnd - taskStart) / (1000 * 60 * 60 * 24)) + 1
+  const middleDayOffset = Math.floor(totalDays / 2)
+  const middleDate = new Date(taskStart)
+  middleDate.setDate(middleDate.getDate() + middleDayOffset)
+  const isMiddle = currentDate.getTime() === middleDate.getTime()
+
+  return { isFirst, isLast, isMiddle, isSingle: isFirst && isLast }
+}
+
+// Check if label should be shown for this date/task combination
+const shouldShowLabel = (date, task) => {
+  const position = getTaskPosition(date, task)
+  return position.isMiddle || position.isSingle
+}
+
+// Get CSS classes for a cell based on day and task position
+const getCellClasses = (day, resource) => {
+  const tasks = getScheduledItemsForTank(day.date, resource)
+  const hasTask = tasks.length > 0
+
+  const classes = {
+    'today': day.isToday,
+    'weekend': day.isWeekend,
+    'holiday': day.isHoliday,
+    'has-task': hasTask
+  }
+
+  if (hasTask) {
+    const position = getTaskPosition(day.date, tasks[0])
+    classes['task-first'] = position.isFirst && !position.isSingle
+    classes['task-last'] = position.isLast && !position.isSingle
+    classes['task-middle'] = !position.isFirst && !position.isLast
+    classes['task-single'] = position.isSingle
+  }
+
+  return classes
+}
+
 const viewScheduleItem = (item) => {
   $q.notify({
     type: 'info',
@@ -1017,6 +1059,28 @@ onMounted(async () => {
 
 .tank-cell.has-task:hover {
   opacity: 0.9;
+}
+
+/* Task block styling - remove gaps between contiguous task cells */
+.tank-cell.task-first {
+  margin-bottom: -1px;
+  padding-bottom: 5px;
+}
+
+.tank-cell.task-middle {
+  margin-top: -1px;
+  margin-bottom: -1px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.tank-cell.task-last {
+  margin-top: -1px;
+  padding-top: 5px;
+}
+
+.tank-cell.task-single {
+  /* Single day task - no margin adjustments needed */
 }
 
 .task-info {
