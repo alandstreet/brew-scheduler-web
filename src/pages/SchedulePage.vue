@@ -100,6 +100,44 @@
             </q-card-section>
           </q-card>
 
+          <!-- Canning Days Section -->
+          <q-separator class="q-my-md" />
+          <div class="text-h6 q-mb-md">Canning Days</div>
+          <div class="row q-gutter-sm q-mb-md">
+            <q-input
+              v-model="newCanningDay"
+              type="date"
+              label="Add Canning Day"
+              outlined
+              dense
+              class="col"
+            />
+            <q-btn
+              color="primary"
+              icon="add"
+              :disable="!newCanningDay || addingCanningDay"
+              :loading="addingCanningDay"
+              @click="addCanningDay"
+            >
+              <q-tooltip>Add Canning Day</q-tooltip>
+            </q-btn>
+          </div>
+          <div v-if="canningDays.length > 0" class="canning-days-list q-mb-md">
+            <q-chip
+              v-for="day in canningDays"
+              :key="day"
+              removable
+              color="red"
+              text-color="white"
+              @remove="removeCanningDay(day)"
+            >
+              {{ formatCanningDay(day) }}
+            </q-chip>
+          </div>
+          <div v-else class="text-grey-6 text-center q-pa-sm">
+            No canning days scheduled
+          </div>
+
           <!-- Beers List -->
           <q-separator class="q-my-md" />
           <div class="row items-center justify-between q-mb-md">
@@ -271,6 +309,7 @@
         </div>
 
         <!-- Schedule Table -->
+        <div class="schedule-table-container">
         <div class="schedule-table">
           <!-- Header Row -->
           <div class="schedule-header">Date</div>
@@ -362,6 +401,15 @@
             </div>
           </template>
         </div>
+        <!-- Canning day row overlays -->
+        <div
+          v-for="(day, index) in scheduleDays"
+          v-show="isCanningDay(day.date)"
+          :key="'canning-' + day.date"
+          class="canning-day-overlay"
+          :style="{ top: `calc(${index} * 36px + 58px)` }"
+        ></div>
+        </div>
       </div>
     </div>
 
@@ -373,6 +421,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { beerTemplatesService } from 'src/services/beerTemplates'
 import { beersService } from 'src/services/beers'
+import { canningDaysService } from 'src/services/canningDays'
 import { apiClient } from 'src/config/api'
 
 const $q = useQuasar()
@@ -397,6 +446,9 @@ const scheduling = ref(false)
 const startDate = ref(new Date())
 const beers = ref([]) // All beers from API
 const scheduledTasks = ref([]) // Tasks from schedule API
+const canningDays = ref([]) // Canning days from API
+const newCanningDay = ref(null) // Input for adding new canning day
+const addingCanningDay = ref(false) // Loading state for adding canning day
 
 // Tanks
 const tanks = ['F6', 'F5', 'F4', 'F3', 'F2', 'F1', 'B1', 'B2']
@@ -960,12 +1012,74 @@ const getPriorityColor = (priority) => {
   }
 }
 
+const loadCanningDays = async () => {
+  try {
+    canningDays.value = await canningDaysService.getAll()
+  } catch (error) {
+    console.error('Failed to load canning days:', error)
+  }
+}
+
+const isCanningDay = (dateStr) => {
+  return canningDays.value.includes(dateStr)
+}
+
+const addCanningDay = async () => {
+  if (!newCanningDay.value) return
+
+  addingCanningDay.value = true
+  try {
+    await canningDaysService.create(newCanningDay.value)
+    await loadCanningDays()
+    newCanningDay.value = null
+
+    $q.notify({
+      type: 'positive',
+      message: 'Canning day added',
+      icon: 'event'
+    })
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to add canning day',
+      caption: error.response?.data?.message || error.message
+    })
+  } finally {
+    addingCanningDay.value = false
+  }
+}
+
+const removeCanningDay = async (day) => {
+  try {
+    await canningDaysService.delete(day)
+    await loadCanningDays()
+
+    $q.notify({
+      type: 'positive',
+      message: 'Canning day removed',
+      icon: 'event_busy'
+    })
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to remove canning day',
+      caption: error.response?.data?.message || error.message
+    })
+  }
+}
+
+const formatCanningDay = (dateStr) => {
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
 // Lifecycle
 onMounted(async () => {
-  // Load templates and beers in parallel
+  // Load templates, beers, and canning days in parallel
   await Promise.all([
     loadBeerTemplates(),
-    loadBeers()
+    loadBeers(),
+    loadCanningDays()
   ])
 })
 </script>
@@ -973,6 +1087,10 @@ onMounted(async () => {
 <style scoped>
 .schedule-page {
   height: 100%;
+}
+
+.schedule-table-container {
+  position: relative;
 }
 
 .schedule-table {
@@ -1131,5 +1249,16 @@ onMounted(async () => {
 .detail-label {
   font-weight: 600;
   color: #555;
+}
+
+.canning-day-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 36px;
+  border: 2px solid #E53935;
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 2;
 }
 </style>
