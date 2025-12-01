@@ -41,6 +41,7 @@ export default defineConfig((/* ctx */) => {
         node: 'node20'
       },
       distDir: './docs',
+      publicPath: '/brewery-scheduler-web/',
       vueRouterMode: 'history', // available values: 'hash', 'history'
       // vueRouterBase,
       // vueDevtools,
