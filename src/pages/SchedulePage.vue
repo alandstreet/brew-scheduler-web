@@ -60,6 +60,19 @@
                   val => val >= 0 || 'Must be 0 or greater'
                 ]"
               />
+              <q-input
+                ref="minMaturationDaysInput"
+                v-model.number="minMaturationDays"
+                label="Min Maturation Days *"
+                type="number"
+                outlined
+                dense
+                class="q-mt-sm"
+                :rules="[
+                  val => val !== null && val !== '' && val !== undefined || 'Min maturation days is required',
+                  val => val >= 0 || 'Must be 0 or greater'
+                ]"
+              />
               <q-select
                 ref="priorityInput"
                 v-model="priority"
@@ -93,7 +106,7 @@
                 icon="add"
                 label="Create Beer"
                 class="full-width q-mt-md"
-                :disable="!batchId || minFermentationDays === null || priority === null || creating"
+                :disable="!batchId || minFermentationDays === null || minMaturationDays === null || priority === null || creating"
                 :loading="creating"
                 @click="createBeerFromTemplate"
               />
@@ -266,6 +279,14 @@
                         outlined
                         style="max-width: 150px;"
                         @update:model-value="(val) => updateBeerTargetCompletionDate(beer, val)"
+                      />
+                    </div>
+                    <div class="detail-row">
+                      <span class="detail-label">Requires Canning:</span>
+                      <q-checkbox
+                        :model-value="beer.requires_canning || false"
+                        dense
+                        @update:model-value="(val) => updateBeerRequiresCanning(beer, val)"
                       />
                     </div>
                   </div>
@@ -451,11 +472,13 @@ const beerTemplates = ref([])
 const selectedTemplate = ref(null)
 const batchId = ref('')
 const minFermentationDays = ref(null)
-const priority = ref(null)
+const minMaturationDays = ref(null)
+const priority = ref(2)
 const targetStartDate = ref(null)
 const targetCompletionDate = ref(null)
 const batchIdInput = ref(null)
 const minFermentationDaysInput = ref(null)
+const minMaturationDaysInput = ref(null)
 const priorityInput = ref(null)
 const targetStartDateInput = ref(null)
 const targetDateInput = ref(null)
@@ -473,12 +496,14 @@ const addingCanningDay = ref(false) // Loading state for adding canning day
 // Tanks
 const tanks = ['F6', 'F5', 'F4', 'F3', 'F2', 'F1', 'B1', 'B2']
 
-// Watch for template selection to initialize min fermentation days
+// Watch for template selection to initialize min fermentation and maturation days
 watch(selectedTemplate, (newTemplate) => {
   if (newTemplate) {
     minFermentationDays.value = newTemplate.min_fermentation_days
+    minMaturationDays.value = newTemplate.min_maturation_days
   } else {
     minFermentationDays.value = null
+    minMaturationDays.value = null
   }
 })
 
@@ -615,7 +640,7 @@ const loadBeers = async () => {
 }
 
 const createBeerFromTemplate = async () => {
-  if (!selectedTemplate.value || !batchId.value || minFermentationDays.value === null || priority.value === null) return
+  if (!selectedTemplate.value || !batchId.value || minFermentationDays.value === null || minMaturationDays.value === null || priority.value === null) return
 
   creating.value = true
   try {
@@ -627,6 +652,7 @@ const createBeerFromTemplate = async () => {
       volume_hl: selectedTemplate.value.volume_hl,
       priority: priority.value,
       min_fermentation_days: minFermentationDays.value,
+      min_maturation_days: minMaturationDays.value,
       target_start_date: targetStartDate.value || null,
       target_completion_date: targetCompletionDate.value || null
     }
@@ -644,11 +670,13 @@ const createBeerFromTemplate = async () => {
     selectedTemplate.value = null
     batchId.value = ''
     minFermentationDays.value = null
-    priority.value = null
+    minMaturationDays.value = null
+    priority.value = 2
     targetStartDate.value = null
     targetCompletionDate.value = null
     batchIdInput.value?.resetValidation()
     minFermentationDaysInput.value?.resetValidation()
+    minMaturationDaysInput.value?.resetValidation()
     priorityInput.value?.resetValidation()
     targetStartDateInput.value?.resetValidation()
     targetDateInput.value?.resetValidation()
@@ -706,7 +734,8 @@ const scheduleBeers = async () => {
   try {
     // Trigger re-scheduling on the server
     const response = await apiClient.post('/api/schedule', {
-      beers: beers.value
+      beers: beers.value,
+      canning_days: canningDays.value
     })
 
     // Extract tasks from the schedule response (schedule.beers contains beers with tasks)
@@ -1074,6 +1103,31 @@ const updateBeerTargetCompletionDate = async (beer, newDate) => {
     $q.notify({
       type: 'negative',
       message: 'Failed to update target completion date',
+      caption: error.response?.data?.message || error.message
+    })
+  }
+}
+
+const updateBeerRequiresCanning = async (beer, requiresCanning) => {
+  try {
+    const updatedBeer = {
+      ...beer,
+      requires_canning: requiresCanning
+    }
+
+    await beersService.update(beer.beer_id, updatedBeer)
+
+    $q.notify({
+      type: 'positive',
+      message: 'Requires canning updated successfully',
+      icon: 'check'
+    })
+
+    await loadBeers()
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to update requires canning',
       caption: error.response?.data?.message || error.message
     })
   }

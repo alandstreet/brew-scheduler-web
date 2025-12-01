@@ -31,6 +31,7 @@ export const beersService = {
    * @param {number} beer.volume_hl - Volume in hectoliters
    * @param {number} beer.priority - Priority (1-5)
    * @param {number} beer.min_fermentation_days - Minimum fermentation days
+   * @param {number} beer.min_maturation_days - Minimum maturation days
    * @param {string} beer.target_start_date - Target start date (YYYY-MM-DD) or null
    * @param {string} beer.target_completion_date - Target completion date (YYYY-MM-DD) or null
    * @returns {Promise<void>} No response body (201 Created)
@@ -44,6 +45,7 @@ export const beersService = {
       volume_hl: beer.volume_hl,
       priority: beer.priority,
       min_fermentation_days: beer.min_fermentation_days,
+      min_maturation_days: beer.min_maturation_days,
       target_start_date: beer.target_start_date,
       target_completion_date: beer.target_completion_date
     }
@@ -57,17 +59,20 @@ export const beersService = {
    * @returns {Promise<void>} No response body (200 OK)
    */
   async update(id, beer) {
-    // Build payload without tasks (read-only) - include beer_id for the API
+    // Build payload - include tasks as required by API
     const beerData = {
       beer_id: beer.beer_id,
-      beer_template_id: beer.beer_template_id,
+      beer_template_id: beer.beer_template_id || null,
       name: beer.name,
-      batch_id: beer.batch_id,
+      batch_id: beer.batch_id || null,
       volume_hl: beer.volume_hl,
       priority: beer.priority,
       min_fermentation_days: beer.min_fermentation_days,
-      target_start_date: beer.target_start_date,
-      target_completion_date: beer.target_completion_date
+      min_maturation_days: beer.min_maturation_days || 0,
+      target_start_date: beer.target_start_date || null,
+      target_completion_date: beer.target_completion_date || null,
+      requires_canning: beer.requires_canning || false,
+      tasks: beer.tasks || []
     }
     await apiClient.put(`${BEERS_ENDPOINT}/${id}`, beerData)
   },
