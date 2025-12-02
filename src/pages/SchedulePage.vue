@@ -293,19 +293,27 @@
 
                   <!-- Scheduled Tasks -->
                   <div v-if="getTasksForBeer(beer.beer_id).length > 0" class="q-mt-md">
-                    <div class="text-subtitle2 q-mb-sm">Scheduled Tasks</div>
+                    <div class="row items-center justify-between q-mb-sm">
+                      <div class="text-subtitle2">Scheduled Tasks</div>
+                      <q-toggle
+                        :model-value="areAllTasksLocked(beer.beer_id)"
+                        label="Pin All"
+                        dense
+                        size="sm"
+                        @update:model-value="(val) => onPinAllTasks(beer, val)"
+                      />
+                    </div>
                     <div
                       v-for="task in getTasksForBeer(beer.beer_id)"
                       :key="`${beer.beer_id}-${task.task_type}`"
                       class="task-row"
                     >
                       <span class="task-type-label">{{ task.task_type }}</span>
-                      <q-toggle
-                        :model-value="task.locked || false"
-                        label="Pin"
-                        dense
-                        size="sm"
-                        @update:model-value="(val) => onPinTask(beer, task, val)"
+                      <q-icon
+                        v-if="task.locked"
+                        name="push_pin"
+                        size="xs"
+                        color="primary"
                       />
                     </div>
                   </div>
@@ -453,6 +461,131 @@
       </div>
     </div>
 
+    <!-- Scheduling Error Dialog -->
+    <q-dialog v-model="showScheduleErrorDialog" persistent>
+      <q-card style="min-width: 500px; max-width: 700px;">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6 text-negative">
+            <q-icon name="error" class="q-mr-sm" />
+            Scheduling Failed
+          </div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+
+        <q-card-section v-if="scheduleErrorData">
+          <div class="text-subtitle1 q-mb-md">{{ scheduleErrorData.message }}</div>
+
+          <!-- Top-level warnings -->
+          <div v-if="scheduleErrorData.diagnostic?.warnings?.length > 0" class="q-mb-md">
+            <div class="text-weight-medium q-mb-sm">
+              <q-icon name="warning" color="warning" class="q-mr-xs" />
+              Warnings
+            </div>
+            <q-list dense bordered separator class="rounded-borders">
+              <q-item v-for="(warning, idx) in scheduleErrorData.diagnostic.warnings" :key="idx">
+                <q-item-section>
+                  <q-item-label class="text-body2">{{ warning }}</q-item-label>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </div>
+
+          <!-- Canning info -->
+          <div v-if="scheduleErrorData.diagnostic?.canning" class="q-mb-md">
+            <div class="text-weight-medium q-mb-sm">
+              <q-icon name="inventory_2" color="primary" class="q-mr-xs" />
+              Canning Constraints
+            </div>
+            <div class="text-body2 q-ml-md">
+              <div><strong>Available canning days:</strong> {{ formatCanningDaysList(scheduleErrorData.diagnostic.canning.available_days) }}</div>
+              <div><strong>Beers requiring canning:</strong> {{ scheduleErrorData.diagnostic.canning.beers_requiring_canning }}</div>
+            </div>
+          </div>
+
+          <!-- Beer diagnostics -->
+          <div v-if="scheduleErrorData.diagnostic?.beer_diagnostics?.length > 0">
+            <div class="text-weight-medium q-mb-sm">
+              <q-icon name="sports_bar" color="amber" class="q-mr-xs" />
+              Beer Details
+            </div>
+            <q-expansion-item
+              v-for="beer in scheduleErrorData.diagnostic.beer_diagnostics"
+              :key="beer.id"
+              dense
+              expand-separator
+              :header-class="beer.warnings?.length > 0 ? 'text-negative' : ''"
+            >
+              <template v-slot:header>
+                <q-item-section avatar>
+                  <q-icon
+                    :name="beer.warnings?.length > 0 ? 'error' : 'check_circle'"
+                    :color="beer.warnings?.length > 0 ? 'negative' : 'positive'"
+                    size="sm"
+                  />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>{{ beer.name }}</q-item-label>
+                  <q-item-label caption>{{ beer.volume_hl }} hl</q-item-label>
+                </q-item-section>
+                <q-item-section side v-if="beer.warnings?.length > 0">
+                  <q-badge color="negative">{{ beer.warnings.length }} warning(s)</q-badge>
+                </q-item-section>
+              </template>
+
+              <q-card flat>
+                <q-card-section class="q-pt-none">
+                  <!-- Beer warnings -->
+                  <div v-if="beer.warnings?.length > 0" class="q-mb-sm">
+                    <div v-for="(warning, idx) in beer.warnings" :key="idx" class="text-negative text-body2 q-mb-xs">
+                      <q-icon name="warning" size="xs" class="q-mr-xs" />
+                      {{ warning }}
+                    </div>
+                  </div>
+
+                  <!-- Beer details -->
+                  <div class="beer-diagnostic-details">
+                    <div class="row q-col-gutter-sm">
+                      <div class="col-6">
+                        <span class="text-grey-7">Brew days:</span> {{ beer.brew_days }}
+                      </div>
+                      <div class="col-6">
+                        <span class="text-grey-7">Min fermentation:</span> {{ beer.min_fermentation_days }} days
+                      </div>
+                      <div class="col-6">
+                        <span class="text-grey-7">Min maturation:</span> {{ beer.min_maturation_days }} days
+                      </div>
+                      <div class="col-6">
+                        <span class="text-grey-7">Min to completion:</span> {{ beer.min_days_to_completion }} days
+                      </div>
+                      <div class="col-6">
+                        <span class="text-grey-7">Requires canning:</span> {{ beer.requires_canning ? 'Yes' : 'No' }}
+                      </div>
+                      <div class="col-6" v-if="beer.target_completion_day !== null">
+                        <span class="text-grey-7">Target completion:</span> Day {{ beer.target_completion_day }}
+                      </div>
+                      <div class="col-6" v-if="beer.earliest_feasible_canning_day !== null">
+                        <span class="text-grey-7">Earliest canning:</span> Day {{ beer.earliest_feasible_canning_day }}
+                      </div>
+                    </div>
+                  </div>
+                </q-card-section>
+              </q-card>
+            </q-expansion-item>
+          </div>
+
+          <!-- Solver status -->
+          <div class="q-mt-md text-caption text-grey-7">
+            Solver status: {{ scheduleErrorData.diagnostic?.solver_status }}
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat label="Close" color="primary" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
   </q-page>
 </template>
 
@@ -492,6 +625,8 @@ const scheduledTasks = ref([]) // Tasks from schedule API
 const canningDays = ref([]) // Canning days from API
 const newCanningDay = ref(null) // Input for adding new canning day
 const addingCanningDay = ref(false) // Loading state for adding canning day
+const showScheduleErrorDialog = ref(false) // Show scheduling error dialog
+const scheduleErrorData = ref(null) // Scheduling error diagnostic data
 
 // Tanks
 const tanks = ['F6', 'F5', 'F4', 'F3', 'F2', 'F1', 'B1', 'B2']
@@ -681,8 +816,9 @@ const createBeerFromTemplate = async () => {
     targetStartDateInput.value?.resetValidation()
     targetDateInput.value?.resetValidation()
 
-    // Reload beers to update the list and calendar
+    // Reload beers to update the list and calendar, then schedule
     await loadBeers()
+    await scheduleBeers()
   } catch (error) {
     $q.notify({
       type: 'negative',
@@ -838,11 +974,19 @@ const scheduleBeers = async () => {
     })
   } catch (error) {
     console.error('Schedule error:', error)
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to schedule beers',
-      caption: error.response?.data?.message || error.message
-    })
+
+    // Check if this is a scheduling error with diagnostic data
+    const errorData = error.response?.data
+    if (errorData?.error === 'SCHEDULING_ERROR' && errorData?.diagnostic) {
+      scheduleErrorData.value = errorData
+      showScheduleErrorDialog.value = true
+    } else {
+      $q.notify({
+        type: 'negative',
+        message: 'Failed to schedule beers',
+        caption: errorData?.message || error.message
+      })
+    }
   } finally {
     scheduling.value = false
   }
@@ -905,67 +1049,87 @@ const getTasksForBeer = (beerId) => {
   return scheduledTasks.value.filter(task => task.beer_id === beerId)
 }
 
-// Handle pin toggle for a task
-const onPinTask = async (beer, task, pinned) => {
+// Check if all tasks for a beer are locked
+const areAllTasksLocked = (beerId) => {
+  const tasks = getTasksForBeer(beerId)
+  if (tasks.length === 0) return false
+  return tasks.every(task => task.locked)
+}
+
+// Handle pin/unpin all tasks for a beer
+const onPinAllTasks = async (beer, pinned) => {
+  const tasks = getTasksForBeer(beer.beer_id)
+  if (tasks.length === 0) return
+
   try {
     if (pinned) {
-      // Create a locked task
-      const createdTask = await tasksService.create({
-        beer_id: beer.beer_id,
-        beer_name: beer.name,
-        task_type: task.task_type,
-        start_day: task.start_day,
-        start_date: task.start_date,
-        duration: task.duration,
-        end_day: task.end_day,
-        end_date: task.end_date,
-        resource: task.resource,
-        volume_hl: beer.volume_hl
-      })
+      // Pin all unlocked tasks
+      for (const task of tasks) {
+        if (!task.locked) {
+          const createdTask = await tasksService.create({
+            beer_id: beer.beer_id,
+            beer_name: beer.name,
+            task_type: task.task_type,
+            start_day: task.start_day,
+            start_date: task.start_date,
+            duration: task.duration,
+            end_day: task.end_day,
+            end_date: task.end_date,
+            resource: task.resource,
+            volume_hl: beer.volume_hl
+          })
 
-      // Update the task in scheduledTasks with the new task_id and locked status
-      const taskIndex = scheduledTasks.value.findIndex(
-        t => t.beer_id === beer.beer_id && t.task_type === task.task_type
-      )
-      if (taskIndex !== -1) {
-        scheduledTasks.value[taskIndex] = {
-          ...scheduledTasks.value[taskIndex],
-          task_id: createdTask.task_id,
-          locked: true
+          // Update the task in scheduledTasks with the new task_id and locked status
+          const taskIndex = scheduledTasks.value.findIndex(
+            t => t.beer_id === beer.beer_id && t.task_type === task.task_type
+          )
+          if (taskIndex !== -1) {
+            scheduledTasks.value[taskIndex] = {
+              ...scheduledTasks.value[taskIndex],
+              task_id: createdTask.task_id,
+              locked: true
+            }
+          }
         }
       }
 
       $q.notify({
         type: 'positive',
-        message: 'Task pinned',
-        caption: `${task.task_type} for ${beer.name}`,
+        message: 'All tasks pinned',
+        caption: beer.name,
         icon: 'push_pin'
       })
     } else {
-      // Delete the task
-      if (task.task_id) {
-        await tasksService.delete(task.task_id)
+      // Unpin all locked tasks
+      for (const task of tasks) {
+        if (task.locked && task.task_id) {
+          await tasksService.delete(task.task_id)
 
-        // Remove the task from scheduledTasks
-        const taskIndex = scheduledTasks.value.findIndex(
-          t => t.beer_id === beer.beer_id && t.task_type === task.task_type
-        )
-        if (taskIndex !== -1) {
-          scheduledTasks.value.splice(taskIndex, 1)
+          // Update the task in scheduledTasks
+          const taskIndex = scheduledTasks.value.findIndex(
+            t => t.beer_id === beer.beer_id && t.task_type === task.task_type
+          )
+          if (taskIndex !== -1) {
+            scheduledTasks.value[taskIndex] = {
+              ...scheduledTasks.value[taskIndex],
+              task_id: null,
+              locked: false
+            }
+          }
         }
-
-        $q.notify({
-          type: 'positive',
-          message: 'Task unpinned',
-          caption: `${task.task_type} for ${beer.name}`,
-          icon: 'push_pin'
-        })
       }
+
+      $q.notify({
+        type: 'positive',
+        message: 'All tasks unpinned',
+        caption: beer.name,
+        icon: 'push_pin'
+      })
     }
   } catch (error) {
     $q.notify({
       type: 'negative',
-      message: pinned ? 'Failed to pin task' : 'Failed to unpin task',
+      message: pinned ? 'Failed to pin tasks' : 'Failed to unpin tasks',
       caption: error.response?.data?.message || error.message
     })
   }
@@ -1020,8 +1184,9 @@ const handleTaskClick = async (event, task) => {
         icon: 'schedule'
       })
 
-      // Reload beers to get updated tasks
+      // Reload beers to get updated tasks and re-run scheduler
       await loadBeers()
+      await scheduleBeers()
     } catch (error) {
       $q.notify({
         type: 'negative',
@@ -1056,8 +1221,9 @@ const deleteBeer = async (beerId) => {
       icon: 'delete'
     })
 
-    // Reload beers to update the list
+    // Reload beers to update the list, then schedule
     await loadBeers()
+    await scheduleBeers()
   } catch (error) {
     $q.notify({
       type: 'negative',
@@ -1094,6 +1260,7 @@ const updateBeerVolume = async (beer, newVolume) => {
     })
 
     await loadBeers()
+    await scheduleBeers()
   } catch (error) {
     $q.notify({
       type: 'negative',
@@ -1118,8 +1285,9 @@ const updateBeerPriority = async (beer, newPriority) => {
       icon: 'check'
     })
 
-    // Reload beers to update the list
+    // Reload beers to update the list, then schedule
     await loadBeers()
+    await scheduleBeers()
   } catch (error) {
     $q.notify({
       type: 'negative',
@@ -1155,8 +1323,9 @@ const updateBeerMinFermentation = async (beer, newMinFermentationDays) => {
       icon: 'check'
     })
 
-    // Reload beers to update the list
+    // Reload beers to update the list, then schedule
     await loadBeers()
+    await scheduleBeers()
   } catch (error) {
     $q.notify({
       type: 'negative',
@@ -1182,6 +1351,7 @@ const updateBeerTargetStartDate = async (beer, newDate) => {
     })
 
     await loadBeers()
+    await scheduleBeers()
   } catch (error) {
     $q.notify({
       type: 'negative',
@@ -1207,6 +1377,7 @@ const updateBeerTargetCompletionDate = async (beer, newDate) => {
     })
 
     await loadBeers()
+    await scheduleBeers()
   } catch (error) {
     $q.notify({
       type: 'negative',
@@ -1232,6 +1403,7 @@ const updateBeerRequiresCanning = async (beer, requiresCanning) => {
     })
 
     await loadBeers()
+    await scheduleBeers()
   } catch (error) {
     $q.notify({
       type: 'negative',
@@ -1329,6 +1501,12 @@ const formatCanningDay = (dateStr) => {
   return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
+// Format canning days list for error dialog (days are relative day numbers)
+const formatCanningDaysList = (days) => {
+  if (!days || days.length === 0) return 'None'
+  return days.map(d => `Day ${d}`).join(', ')
+}
+
 // Lifecycle
 onMounted(async () => {
   // Load templates, beers, and canning days in parallel
@@ -1337,6 +1515,8 @@ onMounted(async () => {
     loadBeers(),
     loadCanningDays()
   ])
+  // Run scheduler after initial load
+  await scheduleBeers()
 })
 </script>
 
@@ -1530,5 +1710,12 @@ onMounted(async () => {
   border-radius: 3px;
   pointer-events: none;
   z-index: 2;
+}
+
+.beer-diagnostic-details {
+  font-size: 12px;
+  background-color: #fafafa;
+  padding: 8px;
+  border-radius: 4px;
 }
 </style>
