@@ -46,5 +46,16 @@ export const tasksService = {
    */
   async delete(taskId) {
     await apiClient.delete(`${TASKS_ENDPOINT}/${taskId}`)
+  },
+
+  /**
+   * Adjust task duration
+   * @param {string} taskId - Task UUID
+   * @param {number} amountDays - Days to adjust (positive to extend, negative to shorten)
+   * @returns {Promise<Array>} All tasks for the beer after adjustment
+   */
+  async adjustDuration(taskId, amountDays) {
+    const response = await apiClient.put(`${TASKS_ENDPOINT}/${taskId}/duration/${amountDays}`)
+    return response.data.tasks || []
   }
 }

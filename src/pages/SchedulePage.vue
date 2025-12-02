@@ -407,7 +407,7 @@
               :style="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 ?
                 { backgroundColor: getBeerColor(getScheduledItemsForTank(day.date, 'Brewhouse')[0].beer_id, getScheduledItemsForTank(day.date, 'Brewhouse')[0].locked) } : {}"
               @click="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 ?
-                viewScheduleItem(getScheduledItemsForTank(day.date, 'Brewhouse')[0]) : null"
+                handleTaskClick($event, getScheduledItemsForTank(day.date, 'Brewhouse')[0]) : null"
             >
               <!-- Task info overlay - only show on middle day -->
               <div
@@ -428,7 +428,7 @@
               :style="getScheduledItemsForTank(day.date, tank).length > 0 ?
                 { backgroundColor: getBeerColor(getScheduledItemsForTank(day.date, tank)[0].beer_id, getScheduledItemsForTank(day.date, tank)[0].locked) } : {}"
               @click="getScheduledItemsForTank(day.date, tank).length > 0 ?
-                viewScheduleItem(getScheduledItemsForTank(day.date, tank)[0]) : null"
+                handleTaskClick($event, getScheduledItemsForTank(day.date, tank)[0]) : null"
             >
               <!-- Task info overlay - only show on middle day -->
               <div
@@ -732,18 +732,79 @@ const getBeerColor = (beerId, locked = false) => {
 const scheduleBeers = async () => {
   scheduling.value = true
   try {
-    // Trigger re-scheduling on the server
-    const response = await apiClient.post('/api/schedule', {
-      beers: beers.value,
+    // Tomorrow is day 0 for the scheduler
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    tomorrow.setHours(0, 0, 0, 0)
+
+    // Helper to calculate day offset from tomorrow
+    const getDayOffset = (dateStr) => {
+      const date = new Date(dateStr)
+      date.setHours(0, 0, 0, 0)
+      const diffTime = date.getTime() - tomorrow.getTime()
+      return Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    }
+
+    // Helper to calculate target_completion_day from target_completion_date
+    const getTargetCompletionDay = (targetCompletionDate) => {
+      if (!targetCompletionDate) return null
+      return getDayOffset(targetCompletionDate)
+    }
+
+    // Separate beers: those with locked tasks vs those without
+    const beersWithLockedTasks = []
+    const beersToSchedule = []
+    const resourceBlocks = []
+
+    for (const beer of beers.value) {
+      const lockedTasks = (beer.tasks || []).filter(task => task.locked)
+
+      if (lockedTasks.length > 0) {
+        // This beer has locked tasks - withhold it and convert tasks to resource_blocks
+        beersWithLockedTasks.push(beer)
+        for (const task of lockedTasks) {
+          resourceBlocks.push({
+            resource: task.resource,
+            start_day: Math.max(0, getDayOffset(task.start_date)),
+            end_day: Math.max(0, getDayOffset(task.end_date))
+          })
+        }
+      } else {
+        // This beer has no locked tasks - include it for scheduling
+        beersToSchedule.push({
+          id: beer.beer_id,
+          name: beer.name,
+          volume_hl: beer.volume_hl,
+          priority: beer.priority,
+          min_fermentation_days: beer.min_fermentation_days,
+          min_maturation_days: beer.min_maturation_days || 0,
+          requires_canning: beer.requires_canning || false,
+          target_completion_day: getTargetCompletionDay(beer.target_completion_date),
+          tasks: []
+        })
+      }
+    }
+
+    // Build request payload
+    const payload = {
+      beers: beersToSchedule,
       canning_days: canningDays.value
-    })
+    }
+
+    // Only include resource_blocks if there are any
+    if (resourceBlocks.length > 0) {
+      payload.resource_blocks = resourceBlocks
+    }
+
+    const response = await apiClient.post('/api/schedule', payload)
 
     // Extract tasks from the schedule response (schedule.beers contains beers with tasks)
     const scheduledBeers = response.data.schedule?.beers || []
     const allTasks = []
+
+    // Add tasks from newly scheduled beers
     for (const beer of scheduledBeers) {
       if (beer.tasks && Array.isArray(beer.tasks)) {
-        // Add beer_id, beer_name, and batch_id to each task for display
         for (const task of beer.tasks) {
           allTasks.push({
             ...task,
@@ -754,6 +815,20 @@ const scheduleBeers = async () => {
         }
       }
     }
+
+    // Preserve locked tasks from beers that were withheld
+    for (const beer of beersWithLockedTasks) {
+      const lockedTasks = (beer.tasks || []).filter(task => task.locked)
+      for (const task of lockedTasks) {
+        allTasks.push({
+          ...task,
+          beer_id: beer.beer_id,
+          beer_name: beer.name,
+          batch_id: beer.batch_id
+        })
+      }
+    }
+
     scheduledTasks.value = allTasks
 
     $q.notify({
@@ -925,6 +1000,39 @@ const viewScheduleItem = (item) => {
     message: `Viewing ${item.name}`,
     caption: 'Feature coming soon...'
   })
+}
+
+const handleTaskClick = async (event, task) => {
+  if (!task) return
+
+  // Check if task is locked and modifier key is pressed
+  if (task.locked && task.task_id && (event.metaKey || event.ctrlKey)) {
+    // Determine direction: left click increases, right click would decrease
+    // Since we only have click, use shift to decrease
+    const amountDays = event.shiftKey ? -1 : 1
+
+    try {
+      await tasksService.adjustDuration(task.task_id, amountDays)
+
+      $q.notify({
+        type: 'positive',
+        message: `Task duration ${amountDays > 0 ? 'increased' : 'decreased'} by 1 day`,
+        icon: 'schedule'
+      })
+
+      // Reload beers to get updated tasks
+      await loadBeers()
+    } catch (error) {
+      $q.notify({
+        type: 'negative',
+        message: 'Failed to adjust task duration',
+        caption: error.response?.data?.message || error.message
+      })
+    }
+  } else {
+    // Normal click - view schedule item
+    viewScheduleItem(task)
+  }
 }
 
 const confirmDeleteBeer = (beer) => {
