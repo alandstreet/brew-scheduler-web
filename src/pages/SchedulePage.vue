@@ -865,6 +865,81 @@ const getBeerColor = (beerId, locked = false) => {
   return `rgba(${r}, ${g}, ${b}, ${opacity})`
 }
 
+// Generate Brisbane/Queensland public holidays for a given year range
+const getBrisbanePublicHolidays = (startYear, endYear) => {
+  const holidays = []
+
+  for (let year = startYear; year <= endYear; year++) {
+    // Fixed date holidays
+    holidays.push(`${year}-01-01`) // New Year's Day
+    holidays.push(`${year}-01-26`) // Australia Day
+    holidays.push(`${year}-04-25`) // Anzac Day
+    holidays.push(`${year}-12-25`) // Christmas Day
+    holidays.push(`${year}-12-26`) // Boxing Day
+
+    // Easter (calculate using anonymous Gregorian algorithm)
+    const a = year % 19
+    const b = Math.floor(year / 100)
+    const c = year % 100
+    const d = Math.floor(b / 4)
+    const e = b % 4
+    const f = Math.floor((b + 8) / 25)
+    const g = Math.floor((b - f + 1) / 3)
+    const h = (19 * a + b - d - g + 15) % 30
+    const i = Math.floor(c / 4)
+    const k = c % 4
+    const l = (32 + 2 * e + 2 * i - h - k) % 7
+    const m = Math.floor((a + 11 * h + 22 * l) / 451)
+    const month = Math.floor((h + l - 7 * m + 114) / 31)
+    const day = ((h + l - 7 * m + 114) % 31) + 1
+
+    const easterSunday = new Date(year, month - 1, day)
+    const goodFriday = new Date(easterSunday)
+    goodFriday.setDate(easterSunday.getDate() - 2)
+    const easterSaturday = new Date(easterSunday)
+    easterSaturday.setDate(easterSunday.getDate() - 1)
+    const easterMonday = new Date(easterSunday)
+    easterMonday.setDate(easterSunday.getDate() + 1)
+
+    holidays.push(formatDate(goodFriday))
+    holidays.push(formatDate(easterSaturday))
+    holidays.push(formatDate(easterMonday))
+
+    // Queensland Labour Day (1st Monday in May)
+    const mayFirst = new Date(year, 4, 1)
+    const labourDay = new Date(mayFirst)
+    while (labourDay.getDay() !== 1) {
+      labourDay.setDate(labourDay.getDate() + 1)
+    }
+    holidays.push(formatDate(labourDay))
+
+    // Queen's/King's Birthday (2nd Monday in October for QLD from 2012)
+    const octFirst = new Date(year, 9, 1)
+    const firstMondayOct = new Date(octFirst)
+    while (firstMondayOct.getDay() !== 1) {
+      firstMondayOct.setDate(firstMondayOct.getDate() + 1)
+    }
+    const royalBirthday = new Date(firstMondayOct)
+    royalBirthday.setDate(firstMondayOct.getDate() + 7)
+    holidays.push(formatDate(royalBirthday))
+
+    // Royal Queensland Show (Ekka) - Brisbane only
+    // People's Day: Wednesday in the week containing 10th-16th August
+    const aug10 = new Date(year, 7, 10)
+    const ekkaWednesday = new Date(aug10)
+    // Find the Wednesday in the week containing Aug 10-16
+    const dayOfWeek = aug10.getDay()
+    const daysToWednesday = (3 - dayOfWeek + 7) % 7
+    ekkaWednesday.setDate(aug10.getDate() + daysToWednesday)
+    // Ensure it's in the 10-16 range
+    if (ekkaWednesday.getDate() >= 10 && ekkaWednesday.getDate() <= 16) {
+      holidays.push(formatDate(ekkaWednesday))
+    }
+  }
+
+  return holidays
+}
+
 const scheduleBeers = async () => {
   scheduling.value = true
   try {
@@ -921,10 +996,15 @@ const scheduleBeers = async () => {
       }
     }
 
+    // Get Brisbane public holidays for the next 2 years
+    const currentYear = new Date().getFullYear()
+    const nonWorkingDays = getBrisbanePublicHolidays(currentYear, currentYear + 1)
+
     // Build request payload
     const payload = {
       beers: beersToSchedule,
-      canning_days: canningDays.value
+      canning_days: canningDays.value,
+      non_working_days: nonWorkingDays
     }
 
     // Only include resource_blocks if there are any
