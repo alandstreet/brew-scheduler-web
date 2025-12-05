@@ -2,7 +2,8 @@ import axios from 'axios'
 
 // Create axios instance with default config
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://brew.alandstreetlab.uk',
+  // baseURL: import.meta.env.VITE_API_URL || 'http://localhost:9999',
+  baseURL: import.meta.env.VITE_API_URL || 'https://brew.alandstreetlab.uk',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
