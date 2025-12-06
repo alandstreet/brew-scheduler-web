@@ -42,7 +42,7 @@ export default defineConfig((/* ctx */) => {
       },
       distDir: './docs',
       publicPath: '/brew-scheduler-web/',
-      vueRouterMode: 'history', // available values: 'hash', 'history'
+      vueRouterMode: 'hash', // available values: 'hash', 'history'
       // vueRouterBase,
       // vueDevtools,
       // vueOptionsAPI: false,

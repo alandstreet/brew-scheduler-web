@@ -163,9 +163,10 @@
               size="sm"
               color="primary"
               :loading="scheduling"
+              :disable="!hasBeersToSchedule"
               @click="scheduleBeers"
             >
-              <q-tooltip>Schedule Beers</q-tooltip>
+              <q-tooltip>{{ hasBeersToSchedule ? 'Schedule Beers' : 'No beers to schedule' }}</q-tooltip>
             </q-btn>
           </div>
 
@@ -643,6 +644,16 @@ watch(selectedTemplate, (newTemplate) => {
 })
 
 // Computed
+const hasBeersToSchedule = computed(() => {
+  if (beers.value.length === 0) return false
+  // Check if there's at least one beer without all tasks locked
+  return beers.value.some(beer => {
+    const tasks = beer.tasks || []
+    if (tasks.length === 0) return true // No tasks means it needs scheduling
+    return !tasks.every(task => task.locked) // Has at least one unlocked task
+  })
+})
+
 const scheduleRangeLabel = computed(() => {
   const start = new Date(startDate.value)
   const end = new Date(startDate.value)
@@ -941,18 +952,19 @@ const getBrisbanePublicHolidays = (startYear, endYear) => {
 }
 
 const scheduleBeers = async () => {
+  // Skip if no beers to schedule
+  if (!hasBeersToSchedule.value) return
+
   scheduling.value = true
   try {
-    // Tomorrow is day 0 for the scheduler
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    tomorrow.setHours(0, 0, 0, 0)
+    // Today is day 0 for the scheduler
+    const today = new Date()
 
     // Helper to calculate day offset from tomorrow
     const getDayOffset = (dateStr) => {
       const date = new Date(dateStr)
       date.setHours(0, 0, 0, 0)
-      const diffTime = date.getTime() - tomorrow.getTime()
+      const diffTime = date.getTime() - today.getTime()
       return Math.floor(diffTime / (1000 * 60 * 60 * 24))
     }
 
@@ -976,8 +988,8 @@ const scheduleBeers = async () => {
         for (const task of lockedTasks) {
           resourceBlocks.push({
             resource: task.resource,
-            start_day: Math.max(0, getDayOffset(task.start_date)),
-            end_day: Math.max(0, getDayOffset(task.end_date))
+            start_day: task.start_day,
+            end_day: task.end_day
           })
         }
       } else {
