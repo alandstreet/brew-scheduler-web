@@ -959,6 +959,7 @@ const scheduleBeers = async () => {
   try {
     // Today is day 0 for the scheduler
     const today = new Date()
+    today.setHours(0, 0, 0, 0)
 
     // Helper to calculate day offset from tomorrow
     const getDayOffset = (dateStr) => {
