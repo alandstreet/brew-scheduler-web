@@ -180,24 +180,26 @@
               :key="beer.beer_id"
               expand-separator
               class="color-indicator"
-              :style="{ backgroundColor: getBeerColor(beer.beer_id) }"
+              :class="{ 'beer-locked': areAllTasksLocked(beer.beer_id) }"
+              :style="getBeerCardStyle(beer.beer_id)"
             >
               <template v-slot:header>
-<!--                <q-item-section avatar>-->
-<!--                  <div-->
-<!--                    class="color-indicator"-->
-<!--                    :style="{ backgroundColor: getBeerColor(beer.beer_id) }"-->
-<!--                  >-->
-<!--                  </div>-->
-<!--                </q-item-section>-->
                 <q-item-section>
                   <q-item-label>{{ beer.name }}</q-item-label>
                   <q-item-label caption>{{ beer.batch_id }}</q-item-label>
                 </q-item-section>
                 <q-item-section side>
-                  <q-badge :color="getPriorityColor(beer.priority)">
-                    P{{ beer.priority }}
-                  </q-badge>
+                  <div class="row items-center q-gutter-xs">
+                    <q-icon
+                      v-if="areAllTasksLocked(beer.beer_id)"
+                      name="lock"
+                      size="xs"
+                      color="grey-7"
+                    />
+                    <q-badge :color="getPriorityColor(beer.priority)">
+                      P{{ beer.priority }}
+                    </q-badge>
+                  </div>
                 </q-item-section>
               </template>
 
@@ -413,8 +415,7 @@
             <div
               class="schedule-cell tank-cell"
               :class="getCellClasses(day, 'Brewhouse')"
-              :style="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 ?
-                { backgroundColor: getBeerColor(getScheduledItemsForTank(day.date, 'Brewhouse')[0].beer_id, getScheduledItemsForTank(day.date, 'Brewhouse')[0].locked) } : {}"
+              :style="getTaskCellStyle(day, 'Brewhouse')"
               @click="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 ?
                 handleTaskClick($event, getScheduledItemsForTank(day.date, 'Brewhouse')[0]) : null"
             >
@@ -434,8 +435,7 @@
               :key="`${day.date}-${tank}`"
               class="schedule-cell tank-cell"
               :class="getCellClasses(day, tank)"
-              :style="getScheduledItemsForTank(day.date, tank).length > 0 ?
-                { backgroundColor: getBeerColor(getScheduledItemsForTank(day.date, tank)[0].beer_id, getScheduledItemsForTank(day.date, tank)[0].locked) } : {}"
+              :style="getTaskCellStyle(day, tank)"
               @click="getScheduledItemsForTank(day.date, tank).length > 0 ?
                 handleTaskClick($event, getScheduledItemsForTank(day.date, tank)[0]) : null"
             >
@@ -456,7 +456,7 @@
           v-show="isCanningDay(day.date)"
           :key="'canning-' + day.date"
           class="canning-day-overlay"
-          :style="{ top: `calc(${index} * 36px + 57px)` }"
+          :style="{ top: `calc(${index} * 36.38px + 57px)` }"
         ></div>
         </div>
       </div>
@@ -874,6 +874,61 @@ const getBeerColor = (beerId, locked = false) => {
   const [r, g, b] = beerColorPaletteRGB[colorIndex]
   const opacity = locked ? 0.4 : 0.2
   return `rgba(${r}, ${g}, ${b}, ${opacity})`
+}
+
+// Get solid border color for a beer (100% opacity)
+const getBeerBorderColor = (beerId) => {
+  if (!beerColorMap.has(beerId)) {
+    const colorIndex = beerColorMap.size % beerColorPaletteRGB.length
+    beerColorMap.set(beerId, colorIndex)
+  }
+  const colorIndex = beerColorMap.get(beerId)
+  const [r, g, b] = beerColorPaletteRGB[colorIndex]
+  return `rgb(${r}, ${g}, ${b})`
+}
+
+// Get style object for beer card (left panel)
+const getBeerCardStyle = (beerId) => {
+  const isLocked = areAllTasksLocked(beerId)
+  const style = {
+    backgroundColor: getBeerColor(beerId, isLocked)
+  }
+  if (isLocked) {
+    style.border = `2px solid ${getBeerBorderColor(beerId)}`
+  }
+  return style
+}
+
+// Get style object for a task cell in the schedule grid
+const getTaskCellStyle = (day, resource) => {
+  const items = getScheduledItemsForTank(day.date, resource)
+  if (items.length === 0) return {}
+
+  const task = items[0]
+  const style = {
+    backgroundColor: getBeerColor(task.beer_id, task.locked)
+  }
+
+  if (task.locked) {
+    const position = getTaskPosition(day.date, task)
+    const borderColor = getBeerBorderColor(task.beer_id)
+
+    // Apply borders based on position in the task block
+    if (position.isSingle) {
+      style.border = `2px solid ${borderColor}`
+    } else {
+      style.borderLeft = `2px solid ${borderColor}`
+      style.borderRight = `2px solid ${borderColor}`
+      if (position.isFirst) {
+        style.borderTop = `2px solid ${borderColor}`
+      }
+      if (position.isLast) {
+        style.borderBottom = `2px solid ${borderColor}`
+      }
+    }
+  }
+
+  return style
 }
 
 // Generate Brisbane/Queensland public holidays for a given year range
@@ -1799,7 +1854,7 @@ onMounted(async () => {
   position: absolute;
   left: 0;
   right: 0;
-  height: 36px;
+  height: 39.5px;
   border: 2px solid #E53935;
   border-radius: 3px;
   pointer-events: none;
