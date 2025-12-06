@@ -968,10 +968,10 @@ const scheduleBeers = async () => {
       return Math.floor(diffTime / (1000 * 60 * 60 * 24))
     }
 
-    // Helper to calculate target_completion_day from target_completion_date
-    const getTargetCompletionDay = (targetCompletionDate) => {
-      if (!targetCompletionDate) return null
-      return getDayOffset(targetCompletionDate)
+    // Helper to calculate target day from date
+    const getTargetDay = (targetDate) => {
+      if (!targetDate) return null
+      return getDayOffset(targetDate)
     }
 
     // Separate beers: those with locked tasks vs those without
@@ -1002,7 +1002,8 @@ const scheduleBeers = async () => {
           min_fermentation_days: beer.min_fermentation_days,
           min_maturation_days: beer.min_maturation_days || 0,
           requires_canning: beer.requires_canning || false,
-          target_completion_day: getTargetCompletionDay(beer.target_completion_date),
+          target_start_day: getTargetDay(beer.target_start_date),
+          target_completion_day: getTargetDay(beer.target_completion_date),
           tasks: []
         })
       }
