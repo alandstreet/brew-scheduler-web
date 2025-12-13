@@ -17,7 +17,7 @@
             option-value="beer_template_id"
             label="Select Beer Template"
             outlined
-            :disable="beerTemplates.length === 0"
+            :disable="!beerTemplates || beerTemplates.length === 0"
           >
             <template #no-option>
               <q-item>
@@ -1083,8 +1083,15 @@ const scheduleBeers = async () => {
 
     const response = await apiClient.post('/api/schedule', payload)
 
-    // Extract tasks from the schedule response (schedule.beers contains beers with tasks)
-    const scheduledBeers = response.data.schedule?.beers || []
+    // Helper to convert day offset to date string
+    const dayToDate = (dayOffset) => {
+      const date = new Date(today)
+      date.setDate(date.getDate() + dayOffset)
+      return formatDate(date)
+    }
+
+    // Extract tasks from the schedule response
+    const scheduledBeers = response.data.beers || []
     const allTasks = []
 
     // Add tasks from newly scheduled beers
@@ -1093,9 +1100,13 @@ const scheduleBeers = async () => {
         for (const task of beer.tasks) {
           allTasks.push({
             ...task,
-            beer_id: beer.beer_id,
+            beer_id: beer.id,
             beer_name: beer.name,
-            batch_id: beer.batch_id
+            batch_id: beer.batch_id,
+            start_date: dayToDate(task.start_day),
+            // end_day is exclusive in the scheduler (end - start = duration)
+            // so subtract 1 to get the inclusive end date for display
+            end_date: dayToDate(task.end_day - 1)
           })
         }
       }

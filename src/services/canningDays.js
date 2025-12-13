@@ -9,7 +9,8 @@ export const canningDaysService = {
    */
   async getAll() {
     const response = await apiClient.get(CANNING_DAYS_ENDPOINT)
-    return response.data.canning_days || []
+    const canningDays = response.data.canning_days || []
+    return canningDays.map(item => item.canning_day)
   },
 
   /**
