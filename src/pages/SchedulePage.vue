@@ -405,7 +405,8 @@
               :class="{
                 'today': day.isToday,
                 'weekend': day.isWeekend,
-                'holiday': day.isHoliday
+                'holiday': day.isHoliday,
+                'canning-day': isCanningDay(day.date)
               }"
             >
               <div class="date-label">{{ day.label }}</div>
@@ -450,14 +451,6 @@
             </div>
           </template>
         </div>
-        <!-- Canning day row overlays -->
-        <div
-          v-for="(day, index) in scheduleDays"
-          v-show="isCanningDay(day.date)"
-          :key="'canning-' + day.date"
-          class="canning-day-overlay"
-          :style="{ top: `calc(${index} * 36.38px + 57px)` }"
-        ></div>
         </div>
       </div>
     </div>
@@ -562,11 +555,17 @@
                       <div class="col-6">
                         <span class="text-grey-7">Requires canning:</span> {{ beer.requires_canning ? 'Yes' : 'No' }}
                       </div>
+                      <div class="col-6" v-if="beer.target_start_day !== null">
+                        <span class="text-grey-7">Target start:</span> {{ dayOffsetToDate(beer.target_start_day) }}
+                      </div>
                       <div class="col-6" v-if="beer.target_completion_day !== null">
-                        <span class="text-grey-7">Target completion:</span> Day {{ beer.target_completion_day }}
+                        <span class="text-grey-7">Target completion:</span> {{ dayOffsetToDate(beer.target_completion_day) }}
+                      </div>
+                      <div class="col-6" v-if="beer.earliest_possible_completion !== null && beer.earliest_possible_completion !== undefined">
+                        <span class="text-grey-7">Earliest completion:</span> {{ dayOffsetToDate(beer.earliest_possible_completion) }}
                       </div>
                       <div class="col-6" v-if="beer.earliest_feasible_canning_day !== null">
-                        <span class="text-grey-7">Earliest canning:</span> Day {{ beer.earliest_feasible_canning_day }}
+                        <span class="text-grey-7">Earliest canning:</span> {{ dayOffsetToDate(beer.earliest_feasible_canning_day) }}
                       </div>
                     </div>
                   </div>
@@ -1042,14 +1041,26 @@ const scheduleBeers = async () => {
         // This beer has locked tasks - withhold it and convert tasks to resource_blocks
         beersWithLockedTasks.push(beer)
         for (const task of lockedTasks) {
-          resourceBlocks.push({
-            resource: task.resource,
-            start_day: task.start_day,
-            end_day: task.end_day
-          })
+          // Calculate day values from dates (today = day 0)
+          // end_date is inclusive, but scheduler uses exclusive end_day, so add 1
+          const startDay = getDayOffset(task.start_date)
+          const endDay = getDayOffset(task.end_date) + 1
+
+          // Only include resource blocks that end after today (end_day >= 1)
+          if (endDay >= 1) {
+            resourceBlocks.push({
+              resource: task.resource,
+              start_day: startDay,
+              end_day: endDay
+            })
+          }
         }
       } else {
         // This beer has no locked tasks - include it for scheduling
+        // Ensure target_start_day is at least 1 (tomorrow) - can't schedule in the past
+        const rawTargetStartDay = getTargetDay(beer.target_start_date)
+        const targetStartDay = rawTargetStartDay !== null ? Math.max(1, rawTargetStartDay) : null
+
         beersToSchedule.push({
           id: beer.beer_id,
           name: beer.name,
@@ -1058,7 +1069,7 @@ const scheduleBeers = async () => {
           min_fermentation_days: beer.min_fermentation_days,
           min_maturation_days: beer.min_maturation_days || 0,
           requires_canning: beer.requires_canning || false,
-          target_start_day: getTargetDay(beer.target_start_date),
+          target_start_day: targetStartDay,
           target_completion_day: getTargetDay(beer.target_completion_date),
           tasks: []
         })
@@ -1137,8 +1148,23 @@ const scheduleBeers = async () => {
 
     // Check if this is a scheduling error with diagnostic data
     const errorData = error.response?.data
+    // Handle both formats: nested diagnostic or top-level diagnostic data
     if (errorData?.error === 'SCHEDULING_ERROR' && errorData?.diagnostic) {
       scheduleErrorData.value = errorData
+      showScheduleErrorDialog.value = true
+    } else if (errorData?.error === 'INFEASIBLE' && errorData?.beer_diagnostics) {
+      // Normalize the top-level format to match the nested format
+      scheduleErrorData.value = {
+        error: errorData.error,
+        message: errorData.message,
+        diagnostic: {
+          solver_status: errorData.solver_status,
+          warnings: errorData.warnings,
+          beer_diagnostics: errorData.beer_diagnostics,
+          canning: errorData.canning,
+          equipment: errorData.equipment
+        }
+      }
       showScheduleErrorDialog.value = true
     } else {
       $q.notify({
@@ -1661,10 +1687,20 @@ const formatCanningDay = (dateStr) => {
   return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
+// Convert a day offset (relative to today) to a date string (YYYY-MM-DD)
+const dayOffsetToDate = (dayOffset) => {
+  if (dayOffset === null || dayOffset === undefined) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const date = new Date(today)
+  date.setDate(date.getDate() + dayOffset)
+  return formatDate(date)
+}
+
 // Format canning days list for error dialog (days are relative day numbers)
 const formatCanningDaysList = (days) => {
   if (!days || days.length === 0) return 'None'
-  return days.map(d => `Day ${d}`).join(', ')
+  return days.map(d => dayOffsetToDate(d)).join(', ')
 }
 
 // Lifecycle
@@ -1749,6 +1785,11 @@ onMounted(async () => {
 
 .date-cell.today {
   background-color: #e3f2fd;
+}
+
+.date-cell.canning-day {
+  border: 2px solid #E53935;
+  border-radius: 3px;
 }
 
 .date-label {
@@ -1859,17 +1900,6 @@ onMounted(async () => {
 .task-type-label {
   font-size: 13px;
   text-transform: capitalize;
-}
-
-.canning-day-overlay {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 39.5px;
-  border: 2px solid #E53935;
-  border-radius: 3px;
-  pointer-events: none;
-  z-index: 2;
 }
 
 .beer-diagnostic-details {
