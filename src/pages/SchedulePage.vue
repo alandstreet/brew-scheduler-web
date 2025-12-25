@@ -151,6 +151,44 @@
             No canning days scheduled
           </div>
 
+          <!-- Non-Working Days Section -->
+          <q-separator class="q-my-md" />
+          <div class="text-h6 q-mb-md">Non-Working Days</div>
+          <div class="row q-gutter-sm q-mb-md">
+            <q-input
+              v-model="newNonWorkingDay"
+              type="date"
+              label="Add Non-Working Day"
+              outlined
+              dense
+              class="col"
+            />
+            <q-btn
+              color="primary"
+              icon="add"
+              :disable="!newNonWorkingDay || addingNonWorkingDay"
+              :loading="addingNonWorkingDay"
+              @click="addNonWorkingDay"
+            >
+              <q-tooltip>Add Non-Working Day</q-tooltip>
+            </q-btn>
+          </div>
+          <div v-if="nonWorkingDays.length > 0" class="non-working-days-list q-mb-md">
+            <q-chip
+              v-for="day in nonWorkingDays"
+              :key="day"
+              removable
+              color="grey"
+              text-color="white"
+              @remove="removeNonWorkingDay(day)"
+            >
+              {{ formatCanningDay(day) }}
+            </q-chip>
+          </div>
+          <div v-else class="text-grey-6 text-center q-pa-sm">
+            No non-working days scheduled
+          </div>
+
           <!-- Beers List -->
           <q-separator class="q-my-md" />
           <div class="row items-center justify-between q-mb-md">
@@ -595,6 +633,7 @@ import { useQuasar } from 'quasar'
 import { beerTemplatesService } from 'src/services/beerTemplates'
 import { beersService } from 'src/services/beers'
 import { canningDaysService } from 'src/services/canningDays'
+import { nonWorkingDaysService } from 'src/services/nonWorkingDays'
 import { tasksService } from 'src/services/tasks'
 import { apiClient } from 'src/config/api'
 
@@ -625,6 +664,9 @@ const scheduledTasks = ref([]) // Tasks from schedule API
 const canningDays = ref([]) // Canning days from API
 const newCanningDay = ref(null) // Input for adding new canning day
 const addingCanningDay = ref(false) // Loading state for adding canning day
+const nonWorkingDays = ref([]) // Non-working days from API
+const newNonWorkingDay = ref(null) // Input for adding new non-working day
+const addingNonWorkingDay = ref(false) // Loading state for adding non-working day
 const showScheduleErrorDialog = ref(false) // Show scheduling error dialog
 const scheduleErrorData = ref(null) // Scheduling error diagnostic data
 
@@ -674,7 +716,8 @@ const scheduleDays = computed(() => {
     const dateStr = formatDate(current)
     const isToday = current.getTime() === today.getTime()
     const isWeekend = current.getDay() === 0 || current.getDay() === 6 // Sunday or Saturday
-    const isHoliday = isAustralianHoliday(current)
+    // Check both public holidays and user-defined non-working days
+    const isHoliday = isAustralianHoliday(current) || nonWorkingDays.value.includes(dateStr)
 
     days.push({
       date: dateStr,
@@ -1078,13 +1121,16 @@ const scheduleBeers = async () => {
 
     // Get Brisbane public holidays for the next 2 years
     const currentYear = new Date().getFullYear()
-    const nonWorkingDays = getBrisbanePublicHolidays(currentYear, currentYear + 1)
+    const publicHolidays = getBrisbanePublicHolidays(currentYear, currentYear + 1)
+
+    // Combine public holidays with user-defined non-working days (deduplicate)
+    const allNonWorkingDays = [...new Set([...publicHolidays, ...nonWorkingDays.value])]
 
     // Build request payload
     const payload = {
       beers: beersToSchedule,
       canning_days: canningDays.value,
-      non_working_days: nonWorkingDays
+      non_working_days: allNonWorkingDays
     }
 
     // Only include resource_blocks if there are any
@@ -1682,6 +1728,58 @@ const removeCanningDay = async (day) => {
   }
 }
 
+const loadNonWorkingDays = async () => {
+  try {
+    nonWorkingDays.value = await nonWorkingDaysService.getAll()
+  } catch (error) {
+    console.error('Failed to load non-working days:', error)
+  }
+}
+
+const addNonWorkingDay = async () => {
+  if (!newNonWorkingDay.value) return
+
+  addingNonWorkingDay.value = true
+  try {
+    await nonWorkingDaysService.create(newNonWorkingDay.value)
+    await loadNonWorkingDays()
+    newNonWorkingDay.value = null
+
+    $q.notify({
+      type: 'positive',
+      message: 'Non-working day added',
+      icon: 'event'
+    })
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to add non-working day',
+      caption: error.response?.data?.message || error.message
+    })
+  } finally {
+    addingNonWorkingDay.value = false
+  }
+}
+
+const removeNonWorkingDay = async (day) => {
+  try {
+    await nonWorkingDaysService.delete(day)
+    await loadNonWorkingDays()
+
+    $q.notify({
+      type: 'positive',
+      message: 'Non-working day removed',
+      icon: 'event_busy'
+    })
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to remove non-working day',
+      caption: error.response?.data?.message || error.message
+    })
+  }
+}
+
 const formatCanningDay = (dateStr) => {
   const date = new Date(dateStr)
   return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
@@ -1705,11 +1803,12 @@ const formatCanningDaysList = (days) => {
 
 // Lifecycle
 onMounted(async () => {
-  // Load templates, beers, and canning days in parallel
+  // Load templates, beers, canning days, and non-working days in parallel
   await Promise.all([
     loadBeerTemplates(),
     loadBeers(),
-    loadCanningDays()
+    loadCanningDays(),
+    loadNonWorkingDays()
   ])
   // Run scheduler after initial load
   await scheduleBeers()
