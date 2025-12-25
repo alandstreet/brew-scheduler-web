@@ -115,79 +115,94 @@
 
           <!-- Canning Days Section -->
           <q-separator class="q-my-md" />
-          <div class="text-h6 q-mb-md">Canning Days</div>
-          <div class="row q-gutter-sm q-mb-md">
-            <q-input
-              v-model="newCanningDay"
-              type="date"
-              label="Add Canning Day"
-              outlined
-              dense
-              class="col"
-            />
-            <q-btn
-              color="primary"
-              icon="add"
-              :disable="!newCanningDay || addingCanningDay"
-              :loading="addingCanningDay"
-              @click="addCanningDay"
-            >
-              <q-tooltip>Add Canning Day</q-tooltip>
-            </q-btn>
-          </div>
-          <div v-if="canningDays.length > 0" class="canning-days-list q-mb-md">
-            <q-chip
-              v-for="day in canningDays"
-              :key="day"
-              removable
-              color="red"
-              text-color="white"
-              @remove="removeCanningDay(day)"
-            >
-              {{ formatCanningDay(day) }}
-            </q-chip>
-          </div>
-          <div v-else class="text-grey-6 text-center q-pa-sm">
-            No canning days scheduled
-          </div>
+          <q-expansion-item
+            icon="event"
+            label="Canning Days"
+            header-class="text-h6"
+            dense
+          >
+            <div class="q-pa-sm">
+              <div class="row q-gutter-sm q-mb-md">
+                <q-input
+                  v-model="newCanningDay"
+                  type="date"
+                  label="Add Canning Day"
+                  outlined
+                  dense
+                  class="col"
+                />
+                <q-btn
+                  color="primary"
+                  icon="add"
+                  :disable="!newCanningDay || addingCanningDay"
+                  :loading="addingCanningDay"
+                  @click="addCanningDay"
+                >
+                  <q-tooltip>Add Canning Day</q-tooltip>
+                </q-btn>
+              </div>
+              <div v-if="canningDays.length > 0" class="canning-days-list">
+                <q-chip
+                  v-for="day in canningDays"
+                  :key="day"
+                  removable
+                  color="red"
+                  text-color="white"
+                  @remove="removeCanningDay(day)"
+                >
+                  {{ formatCanningDay(day) }}
+                </q-chip>
+              </div>
+              <div v-else class="text-grey-6 text-center q-pa-sm">
+                No canning days scheduled
+              </div>
+            </div>
+          </q-expansion-item>
 
           <!-- Non-Working Days Section -->
-          <q-separator class="q-my-md" />
-          <div class="text-h6 q-mb-md">Non-Working Days</div>
-          <div class="row q-gutter-sm q-mb-md">
-            <q-input
-              v-model="newNonWorkingDay"
-              type="date"
-              label="Add Non-Working Day"
-              outlined
-              dense
-              class="col"
-            />
-            <q-btn
-              color="primary"
-              icon="add"
-              :disable="!newNonWorkingDay || addingNonWorkingDay"
-              :loading="addingNonWorkingDay"
-              @click="addNonWorkingDay"
-            >
-              <q-tooltip>Add Non-Working Day</q-tooltip>
-            </q-btn>
-          </div>
-          <div v-if="nonWorkingDays.length > 0" class="non-working-days-list q-mb-md">
-            <q-chip
-              v-for="day in nonWorkingDays"
-              :key="day"
-              removable
-              color="grey"
-              text-color="white"
-              @remove="removeNonWorkingDay(day)"
-            >
-              {{ formatCanningDay(day) }}
-            </q-chip>
-          </div>
-          <div v-else class="text-grey-6 text-center q-pa-sm">
-            No non-working days scheduled
-          </div>
+          <q-expansion-item
+            icon="event_busy"
+            label="Non-Working Days"
+            header-class="text-h6"
+            dense
+          >
+            <div class="q-pa-sm">
+              <div class="row q-gutter-sm q-mb-md">
+                <q-input
+                  v-model="newNonWorkingDay"
+                  type="date"
+                  label="Add Non-Working Day"
+                  outlined
+                  dense
+                  class="col"
+                />
+                <q-btn
+                  color="primary"
+                  icon="add"
+                  :disable="!newNonWorkingDay || addingNonWorkingDay"
+                  :loading="addingNonWorkingDay"
+                  @click="addNonWorkingDay"
+                >
+                  <q-tooltip>Add Non-Working Day</q-tooltip>
+                </q-btn>
+              </div>
+              <div v-if="nonWorkingDays.length > 0" class="non-working-days-list">
+                <q-chip
+                  v-for="day in nonWorkingDays"
+                  :key="day"
+                  removable
+                  color="grey"
+                  text-color="white"
+                  @remove="removeNonWorkingDay(day)"
+                >
+                  {{ formatCanningDay(day) }}
+                </q-chip>
+              </div>
+              <div v-else class="text-grey-6 text-center q-pa-sm">
+                No non-working days scheduled
+              </div>
+            </div>
+          </q-expansion-item>
 
           <!-- Beers List -->
           <q-separator class="q-my-md" />
@@ -302,25 +317,53 @@
                     </div>
                     <div class="detail-row">
                       <span class="detail-label">Target Start:</span>
-                      <q-input
-                        :model-value="beer.target_start_date || ''"
-                        type="date"
-                        dense
-                        outlined
-                        style="max-width: 150px;"
-                        @update:model-value="(val) => updateBeerTargetStartDate(beer, val)"
-                      />
+                      <div class="row items-center no-wrap q-gutter-xs">
+                        <q-input
+                          :model-value="beer.target_start_date || ''"
+                          type="date"
+                          dense
+                          outlined
+                          style="max-width: 150px;"
+                          @update:model-value="(val) => updateBeerTargetStartDate(beer, val)"
+                        />
+                        <q-btn
+                          v-if="beer.target_start_date"
+                          flat
+                          round
+                          dense
+                          size="sm"
+                          icon="close"
+                          color="grey"
+                          @click="updateBeerTargetStartDate(beer, null)"
+                        >
+                          <q-tooltip>Clear target start date</q-tooltip>
+                        </q-btn>
+                      </div>
                     </div>
                     <div class="detail-row">
                       <span class="detail-label">Target Completion:</span>
-                      <q-input
-                        :model-value="beer.target_completion_date || ''"
-                        type="date"
-                        dense
-                        outlined
-                        style="max-width: 150px;"
-                        @update:model-value="(val) => updateBeerTargetCompletionDate(beer, val)"
-                      />
+                      <div class="row items-center no-wrap q-gutter-xs">
+                        <q-input
+                          :model-value="beer.target_completion_date || ''"
+                          type="date"
+                          dense
+                          outlined
+                          style="max-width: 150px;"
+                          @update:model-value="(val) => updateBeerTargetCompletionDate(beer, val)"
+                        />
+                        <q-btn
+                          v-if="beer.target_completion_date"
+                          flat
+                          round
+                          dense
+                          size="sm"
+                          icon="close"
+                          color="grey"
+                          @click="updateBeerTargetCompletionDate(beer, null)"
+                        >
+                          <q-tooltip>Clear target completion date</q-tooltip>
+                        </q-btn>
+                      </div>
                     </div>
                     <div class="detail-row">
                       <span class="detail-label">Requires Canning:</span>
@@ -1698,6 +1741,8 @@ const addCanningDay = async () => {
       message: 'Canning day added',
       icon: 'event'
     })
+
+    await scheduleBeers()
   } catch (error) {
     $q.notify({
       type: 'negative',
@@ -1719,6 +1764,8 @@ const removeCanningDay = async (day) => {
       message: 'Canning day removed',
       icon: 'event_busy'
     })
+
+    await scheduleBeers()
   } catch (error) {
     $q.notify({
       type: 'negative',
@@ -1750,6 +1797,8 @@ const addNonWorkingDay = async () => {
       message: 'Non-working day added',
       icon: 'event'
     })
+
+    await scheduleBeers()
   } catch (error) {
     $q.notify({
       type: 'negative',
@@ -1771,6 +1820,8 @@ const removeNonWorkingDay = async (day) => {
       message: 'Non-working day removed',
       icon: 'event_busy'
     })
+
+    await scheduleBeers()
   } catch (error) {
     $q.notify({
       type: 'negative',
