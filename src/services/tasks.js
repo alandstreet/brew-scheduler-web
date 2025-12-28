@@ -57,5 +57,35 @@ export const tasksService = {
   async adjustDuration(taskId, amountDays) {
     const response = await apiClient.put(`${TASKS_ENDPOINT}/${taskId}/duration/${amountDays}`)
     return response.data.tasks || []
+  },
+
+  /**
+   * Update sub-task
+   * @param {string} subTaskId - Sub-task UUID
+   * @param {Object} updates - Fields to update (all optional)
+   * @param {number} [updates.day] - New day value (relative to task start)
+   * @param {string} [updates.date] - New date (YYYY-MM-DD)
+   * @param {string} [updates.notes] - Notes
+   * @returns {Promise<Object>} Updated sub-task
+   */
+  async updateSubTask(subTaskId, updates) {
+    const response = await apiClient.put(`/api/sub-tasks/${subTaskId}`, updates)
+    return response.data
+  },
+
+  /**
+   * Create a sub-task for a task
+   * @param {string} taskId - Parent task UUID
+   * @param {Object} subTask - Sub-task data
+   * @param {string} subTask.sub_task_name - Name of the sub-task
+   * @param {number} subTask.day - Day relative to task start
+   * @returns {Promise<Object>} Created sub-task
+   */
+  async createSubTask(taskId, subTask) {
+    const response = await apiClient.post(`/api/sub-tasks`, {
+      task_id: taskId,
+      ...subTask
+    })
+    return response.data
   }
 }

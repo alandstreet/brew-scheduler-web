@@ -390,15 +390,37 @@
                     <div
                       v-for="task in getTasksForBeer(beer.beer_id)"
                       :key="`${beer.beer_id}-${task.task_type}`"
-                      class="task-row"
+                      class="task-item"
                     >
-                      <span class="task-type-label">{{ task.task_type }}</span>
-                      <q-icon
-                        v-if="task.locked"
-                        name="push_pin"
-                        size="xs"
-                        color="primary"
-                      />
+                      <div class="task-row">
+                        <span class="task-type-label">{{ task.task_type }}</span>
+                        <q-icon
+                          v-if="task.locked"
+                          name="push_pin"
+                          size="xs"
+                          color="primary"
+                        />
+                      </div>
+                      <!-- Sub-tasks list -->
+                      <div v-if="task.sub_tasks && task.sub_tasks.length > 0" class="sub-tasks-list">
+                        <div
+                          v-for="subTask in task.sub_tasks"
+                          :key="subTask.sub_task_id"
+                          class="sub-task-row"
+                        >
+                          <span class="sub-task-label">{{ subTask.sub_task_name }}</span>
+                          <q-input
+                            v-if="task.locked"
+                            :model-value="subTask.day"
+                            type="number"
+                            dense
+                            outlined
+                            class="sub-task-day-input"
+                            @update:model-value="(val) => onSubTaskDayChange(task, subTask, val)"
+                          />
+                          <span v-else class="sub-task-day">Day {{ subTask.day }}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </q-card-section>
@@ -496,15 +518,16 @@
             <!-- Brewhouse Cell -->
             <div
               class="schedule-cell tank-cell"
-              :class="[getCellClasses(day, 'Brewhouse'), { 'has-sub-task': cellHasSubTasks(day.date, 'Brewhouse') }]"
+              :class="[getCellClasses(day, 'Brewhouse'), { 'has-sub-task': cellHasSubTasks(day.date, 'Brewhouse'), 'sub-task-non-working': cellHasSubTasks(day.date, 'Brewhouse') && day.isHoliday }]"
               :style="getTaskCellStyle(day, 'Brewhouse')"
               @click="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 ?
                 handleTaskClick($event, getScheduledItemsForTank(day.date, 'Brewhouse')[0]) : null"
+              @contextmenu.prevent="handleCellContextMenu($event, day.date, 'Brewhouse')"
             >
               <!-- Sub-task indicator -->
               <div v-if="cellHasSubTasks(day.date, 'Brewhouse')" class="sub-task-indicator">
-                <span v-for="subTask in getSubTasksForCell(day.date, 'Brewhouse')" :key="subTask.sub_task_id" class="sub-task-name">
-                  {{ subTask.sub_task_name }}
+                <span class="sub-task-name">
+                  {{ getSubTasksForCell(day.date, 'Brewhouse').map(s => s.sub_task_name).join(', ') }}
                 </span>
               </div>
               <!-- Task info overlay - only show on middle day -->
@@ -522,15 +545,16 @@
               v-for="tank in tanks"
               :key="`${day.date}-${tank}`"
               class="schedule-cell tank-cell"
-              :class="[getCellClasses(day, tank), { 'has-sub-task': cellHasSubTasks(day.date, tank) }]"
+              :class="[getCellClasses(day, tank), { 'has-sub-task': cellHasSubTasks(day.date, tank), 'sub-task-non-working': cellHasSubTasks(day.date, tank) && day.isHoliday }]"
               :style="getTaskCellStyle(day, tank)"
               @click="getScheduledItemsForTank(day.date, tank).length > 0 ?
                 handleTaskClick($event, getScheduledItemsForTank(day.date, tank)[0]) : null"
+              @contextmenu.prevent="handleCellContextMenu($event, day.date, tank)"
             >
               <!-- Sub-task indicator -->
               <div v-if="cellHasSubTasks(day.date, tank)" class="sub-task-indicator">
-                <span v-for="subTask in getSubTasksForCell(day.date, tank)" :key="subTask.sub_task_id" class="sub-task-name">
-                  {{ subTask.sub_task_name }}
+                <span class="sub-task-name">
+                  {{ getSubTasksForCell(day.date, tank).map(s => s.sub_task_name).join(', ') }}
                 </span>
               </div>
               <!-- Task info overlay - only show on middle day -->
@@ -679,6 +703,47 @@
       </q-card>
     </q-dialog>
 
+    <!-- Add Sub-Task Dialog -->
+    <q-dialog v-model="showAddSubTaskDialog">
+      <q-card style="min-width: 350px;">
+        <q-card-section>
+          <div class="text-h6">Add Sub-Task</div>
+          <div v-if="addSubTaskContext" class="text-caption text-grey-7">
+            {{ addSubTaskContext.task.beer_name }} - {{ addSubTaskContext.task.task_type }}
+          </div>
+        </q-card-section>
+
+        <q-card-section class="q-pt-none">
+          <q-select
+            v-model="selectedSubTaskName"
+            :options="subTaskNames"
+            label="Sub-Task Name"
+            outlined
+            dense
+            emit-value
+            map-options
+            option-label="sub_task_name"
+            option-value="sub_task_name"
+          />
+          <div v-if="addSubTaskContext" class="q-mt-sm text-body2">
+            Day: {{ addSubTaskContext.dayOffset }} (relative to task start)
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" color="grey" v-close-popup />
+          <q-btn
+            flat
+            label="Add"
+            color="primary"
+            :disable="!selectedSubTaskName || addingSubTask"
+            :loading="addingSubTask"
+            @click="addSubTaskToTask"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
   </q-page>
 </template>
 
@@ -690,6 +755,7 @@ import { beersService } from 'src/services/beers'
 import { canningDaysService } from 'src/services/canningDays'
 import { nonWorkingDaysService } from 'src/services/nonWorkingDays'
 import { tasksService } from 'src/services/tasks'
+import { subTaskNamesService } from 'src/services/subTaskNames'
 import { apiClient } from 'src/config/api'
 
 const $q = useQuasar()
@@ -724,6 +790,11 @@ const newNonWorkingDay = ref(null) // Input for adding new non-working day
 const addingNonWorkingDay = ref(false) // Loading state for adding non-working day
 const showScheduleErrorDialog = ref(false) // Show scheduling error dialog
 const scheduleErrorData = ref(null) // Scheduling error diagnostic data
+const subTaskNames = ref([]) // Available sub-task names
+const showAddSubTaskDialog = ref(false) // Show add sub-task dialog
+const addSubTaskContext = ref(null) // Context for adding sub-task { task, date, dayOffset }
+const selectedSubTaskName = ref(null) // Selected sub-task name for adding
+const addingSubTask = ref(false) // Loading state for adding sub-task
 
 // Tanks
 const tanks = ['F6', 'F5', 'F4', 'F3', 'F2', 'F1', 'B1', 'B2']
@@ -1447,6 +1518,110 @@ const onPinAllTasks = async (beer, pinned) => {
   }
 }
 
+// Handle sub-task day change for locked beers
+const onSubTaskDayChange = async (task, subTask, newDay) => {
+  if (!subTask.sub_task_id) return
+
+  const day = Number(newDay)
+  if (isNaN(day) || day < 0) return
+
+  try {
+    await tasksService.updateSubTask(subTask.sub_task_id, { day })
+
+    // Update local state
+    const taskIndex = scheduledTasks.value.findIndex(t => t.task_id === task.task_id)
+    if (taskIndex !== -1) {
+      const subTaskIndex = scheduledTasks.value[taskIndex].sub_tasks?.findIndex(
+        st => st.sub_task_id === subTask.sub_task_id
+      )
+      if (subTaskIndex !== -1 && subTaskIndex !== undefined) {
+        scheduledTasks.value[taskIndex].sub_tasks[subTaskIndex].day = day
+      }
+    }
+
+    $q.notify({
+      type: 'positive',
+      message: 'Sub-task day updated',
+      icon: 'check'
+    })
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to update sub-task day',
+      caption: error.response?.data?.message || error.message
+    })
+  }
+}
+
+// Handle right-click on cell to add sub-task
+const handleCellContextMenu = (event, date, resource) => {
+  const tasks = getScheduledItemsForTank(date, resource)
+  if (tasks.length === 0) return
+
+  const task = tasks[0]
+  if (!task.locked || !task.task_id) return
+
+  // Calculate day offset relative to task start
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const currentDate = new Date(date)
+  currentDate.setHours(0, 0, 0, 0)
+  const absoluteDayOffset = Math.round((currentDate - today) / (1000 * 60 * 60 * 24))
+  const dayOffset = absoluteDayOffset - task.start_day
+
+  addSubTaskContext.value = { task, date, dayOffset }
+  selectedSubTaskName.value = null
+  showAddSubTaskDialog.value = true
+}
+
+// Add sub-task to task
+const addSubTaskToTask = async () => {
+  if (!addSubTaskContext.value || !selectedSubTaskName.value) return
+
+  addingSubTask.value = true
+  try {
+    const { task, dayOffset } = addSubTaskContext.value
+    const response = await tasksService.createSubTask(task.task_id, {
+      sub_task_name: selectedSubTaskName.value,
+      day: dayOffset
+    })
+
+    // Update local state - add sub-task to the task
+    const taskIndex = scheduledTasks.value.findIndex(t => t.task_id === task.task_id)
+    if (taskIndex !== -1) {
+      if (!scheduledTasks.value[taskIndex].sub_tasks) {
+        scheduledTasks.value[taskIndex].sub_tasks = []
+      }
+      scheduledTasks.value[taskIndex].sub_tasks.push(response.sub_task || response)
+    }
+
+    $q.notify({
+      type: 'positive',
+      message: 'Sub-task added',
+      icon: 'check'
+    })
+
+    showAddSubTaskDialog.value = false
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to add sub-task',
+      caption: error.response?.data?.message || error.message
+    })
+  } finally {
+    addingSubTask.value = false
+  }
+}
+
+// Load sub-task names
+const loadSubTaskNames = async () => {
+  try {
+    subTaskNames.value = await subTaskNamesService.getAll()
+  } catch (error) {
+    console.error('Failed to load sub-task names:', error)
+  }
+}
+
 // Get CSS classes for a cell based on day and task position
 const getCellClasses = (day, resource) => {
   const tasks = getScheduledItemsForTank(day.date, resource)
@@ -1891,12 +2066,13 @@ const formatCanningDaysList = (days) => {
 
 // Lifecycle
 onMounted(async () => {
-  // Load templates, beers, canning days, and non-working days in parallel
+  // Load templates, beers, canning days, non-working days, and sub-task names in parallel
   await Promise.all([
     loadBeerTemplates(),
     loadBeers(),
     loadCanningDays(),
-    loadNonWorkingDays()
+    loadNonWorkingDays(),
+    loadSubTaskNames()
   ])
   // Run scheduler after initial load
   await scheduleBeers()
@@ -2057,6 +2233,10 @@ onMounted(async () => {
   box-sizing: border-box;
 }
 
+.tank-cell.has-sub-task.sub-task-non-working {
+  border: 2px dashed #1976d2 !important;
+}
+
 .sub-task-indicator {
   display: flex;
   flex-direction: column;
@@ -2115,6 +2295,54 @@ onMounted(async () => {
 .task-type-label {
   font-size: 13px;
   text-transform: capitalize;
+}
+
+.task-item {
+  margin-bottom: 4px;
+}
+
+.task-item .task-row {
+  margin-bottom: 0;
+}
+
+.sub-tasks-list {
+  margin-left: 12px;
+  margin-top: 2px;
+  border-left: 2px solid #1976d2;
+  padding-left: 8px;
+}
+
+.sub-task-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 4px;
+  font-size: 11px;
+  color: #555;
+}
+
+.sub-task-label {
+  font-weight: 500;
+  color: #1976d2;
+}
+
+.sub-task-day {
+  font-size: 10px;
+  color: #888;
+}
+
+.sub-task-day-input {
+  max-width: 60px;
+}
+
+.sub-task-day-input :deep(.q-field__control) {
+  height: 24px;
+  min-height: 24px;
+}
+
+.sub-task-day-input :deep(.q-field__native) {
+  font-size: 11px;
+  padding: 0 4px;
 }
 
 .beer-diagnostic-details {
