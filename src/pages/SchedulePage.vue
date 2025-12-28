@@ -496,14 +496,20 @@
             <!-- Brewhouse Cell -->
             <div
               class="schedule-cell tank-cell"
-              :class="getCellClasses(day, 'Brewhouse')"
+              :class="[getCellClasses(day, 'Brewhouse'), { 'has-sub-task': cellHasSubTasks(day.date, 'Brewhouse') }]"
               :style="getTaskCellStyle(day, 'Brewhouse')"
               @click="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 ?
                 handleTaskClick($event, getScheduledItemsForTank(day.date, 'Brewhouse')[0]) : null"
             >
+              <!-- Sub-task indicator -->
+              <div v-if="cellHasSubTasks(day.date, 'Brewhouse')" class="sub-task-indicator">
+                <span v-for="subTask in getSubTasksForCell(day.date, 'Brewhouse')" :key="subTask.sub_task_id" class="sub-task-name">
+                  {{ subTask.sub_task_name }}
+                </span>
+              </div>
               <!-- Task info overlay - only show on middle day -->
               <div
-                v-if="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 && shouldShowLabel(day.date, getScheduledItemsForTank(day.date, 'Brewhouse')[0])"
+                v-else-if="getScheduledItemsForTank(day.date, 'Brewhouse').length > 0 && shouldShowLabel(day.date, getScheduledItemsForTank(day.date, 'Brewhouse')[0])"
                 class="task-info"
               >
                 <div class="task-name">{{ getScheduledItemsForTank(day.date, 'Brewhouse')[0].beer_name }} <span v-if="getScheduledItemsForTank(day.date, 'Brewhouse')[0].batch_id" class="batch-id"> {{ getScheduledItemsForTank(day.date, 'Brewhouse')[0].batch_id }}</span></div>
@@ -516,14 +522,20 @@
               v-for="tank in tanks"
               :key="`${day.date}-${tank}`"
               class="schedule-cell tank-cell"
-              :class="getCellClasses(day, tank)"
+              :class="[getCellClasses(day, tank), { 'has-sub-task': cellHasSubTasks(day.date, tank) }]"
               :style="getTaskCellStyle(day, tank)"
               @click="getScheduledItemsForTank(day.date, tank).length > 0 ?
                 handleTaskClick($event, getScheduledItemsForTank(day.date, tank)[0]) : null"
             >
+              <!-- Sub-task indicator -->
+              <div v-if="cellHasSubTasks(day.date, tank)" class="sub-task-indicator">
+                <span v-for="subTask in getSubTasksForCell(day.date, tank)" :key="subTask.sub_task_id" class="sub-task-name">
+                  {{ subTask.sub_task_name }}
+                </span>
+              </div>
               <!-- Task info overlay - only show on middle day -->
               <div
-                v-if="getScheduledItemsForTank(day.date, tank).length > 0 && shouldShowLabel(day.date, getScheduledItemsForTank(day.date, tank)[0])"
+                v-else-if="getScheduledItemsForTank(day.date, tank).length > 0 && shouldShowLabel(day.date, getScheduledItemsForTank(day.date, tank)[0])"
                 class="task-info"
               >
                 <div class="task-name">{{ getScheduledItemsForTank(day.date, tank)[0].beer_name }} <span v-if="getScheduledItemsForTank(day.date, tank)[0].batch_id" class="batch-id"> {{ getScheduledItemsForTank(day.date, tank)[0].batch_id }}</span></div>
@@ -1319,6 +1331,31 @@ const shouldShowLabel = (date, task) => {
   return position.isMiddle || position.isSingle
 }
 
+// Get sub-tasks for a specific date and resource
+const getSubTasksForCell = (date, resource) => {
+  const tasks = getScheduledItemsForTank(date, resource)
+  if (tasks.length === 0) return []
+
+  const task = tasks[0]
+  if (!task.sub_tasks || task.sub_tasks.length === 0) return []
+
+  // Get the day offset for the current date
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const currentDate = new Date(date)
+  currentDate.setHours(0, 0, 0, 0)
+  const dayOffset = Math.round((currentDate - today) / (1000 * 60 * 60 * 24))
+
+  // Sub-task day is relative to the parent task's start_day
+  // So absolute day = task.start_day + sub_task.day
+  return task.sub_tasks.filter(subTask => (task.start_day + subTask.day) === dayOffset)
+}
+
+// Check if cell has sub-tasks
+const cellHasSubTasks = (date, resource) => {
+  return getSubTasksForCell(date, resource).length > 0
+}
+
 // Get tasks for a specific beer
 const getTasksForBeer = (beerId) => {
   return scheduledTasks.value.filter(task => task.beer_id === beerId)
@@ -2012,6 +2049,34 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Sub-task styling */
+.tank-cell.has-sub-task {
+  border: 2px solid #1976d2 !important;
+  box-sizing: border-box;
+}
+
+.sub-task-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 2px;
+}
+
+.sub-task-name {
+  font-size: 9px;
+  font-weight: 600;
+  color: #1976d2;
+  text-align: center;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .color-indicator {
