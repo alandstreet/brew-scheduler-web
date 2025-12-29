@@ -1266,10 +1266,10 @@ const scheduleBeers = async () => {
 
     const response = await apiClient.post('/api/schedule', payload)
 
-    // Helper to convert day offset to date string
+    // Helper to convert day offset to date string (day=0 is tomorrow)
     const dayToDate = (dayOffset) => {
       const date = new Date(today)
-      date.setDate(date.getDate() + dayOffset)
+      date.setDate(date.getDate() + dayOffset + 1)
       return formatDate(date)
     }
 
@@ -1410,12 +1410,12 @@ const getSubTasksForCell = (date, resource) => {
   const task = tasks[0]
   if (!task.sub_tasks || task.sub_tasks.length === 0) return []
 
-  // Get the day offset for the current date
+  // Get the day offset for the current date (day=0 is tomorrow in API convention)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const currentDate = new Date(date)
   currentDate.setHours(0, 0, 0, 0)
-  const dayOffset = Math.round((currentDate - today) / (1000 * 60 * 60 * 24))
+  const dayOffset = Math.round((currentDate - today) / (1000 * 60 * 60 * 24)) - 1
 
   // Sub-task day is relative to the parent task's start_day
   // So absolute day = task.start_day + sub_task.day
@@ -1561,12 +1561,12 @@ const handleCellContextMenu = (event, date, resource) => {
   const task = tasks[0]
   if (!task.locked || !task.task_id) return
 
-  // Calculate day offset relative to task start
+  // Calculate day offset relative to task start (day=0 is tomorrow in API convention)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const currentDate = new Date(date)
   currentDate.setHours(0, 0, 0, 0)
-  const absoluteDayOffset = Math.round((currentDate - today) / (1000 * 60 * 60 * 24))
+  const absoluteDayOffset = Math.round((currentDate - today) / (1000 * 60 * 60 * 24)) - 1
   const dayOffset = absoluteDayOffset - task.start_day
 
   addSubTaskContext.value = { task, date, dayOffset }
@@ -2048,13 +2048,13 @@ const formatCanningDay = (dateStr) => {
   return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-// Convert a day offset (relative to today) to a date string (YYYY-MM-DD)
+// Convert a day offset to a date string (YYYY-MM-DD) - day=0 is tomorrow
 const dayOffsetToDate = (dayOffset) => {
   if (dayOffset === null || dayOffset === undefined) return null
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const date = new Date(today)
-  date.setDate(date.getDate() + dayOffset)
+  date.setDate(date.getDate() + dayOffset + 1)
   return formatDate(date)
 }
 
