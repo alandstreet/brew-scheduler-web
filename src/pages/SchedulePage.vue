@@ -1586,19 +1586,10 @@ const addSubTaskToTask = async () => {
   addingSubTask.value = true
   try {
     const { task, dayOffset } = addSubTaskContext.value
-    const response = await tasksService.createSubTask(task.task_id, {
+    await tasksService.createSubTask(task.task_id, {
       sub_task_name: selectedSubTaskName.value,
       day: dayOffset
     })
-
-    // Update local state - add sub-task to the task
-    const taskIndex = scheduledTasks.value.findIndex(t => t.task_id === task.task_id)
-    if (taskIndex !== -1) {
-      if (!scheduledTasks.value[taskIndex].sub_tasks) {
-        scheduledTasks.value[taskIndex].sub_tasks = []
-      }
-      scheduledTasks.value[taskIndex].sub_tasks.push(response.sub_task || response)
-    }
 
     $q.notify({
       type: 'positive',
@@ -1607,6 +1598,10 @@ const addSubTaskToTask = async () => {
     })
 
     showAddSubTaskDialog.value = false
+
+    // Reload beers and re-schedule
+    await loadBeers()
+    await scheduleBeers()
   } catch (error) {
     $q.notify({
       type: 'negative',
