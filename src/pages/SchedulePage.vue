@@ -1419,7 +1419,12 @@ const getSubTasksForCell = (date, resource) => {
 
   // Sub-task day is relative to the parent task's start_day
   // So absolute day = task.start_day + sub_task.day
-  return task.sub_tasks.filter(subTask => (task.start_day + subTask.day) === dayOffset)
+  // For non-locked tasks, adjust by -1 to display one day earlier
+  return task.sub_tasks.filter(subTask => {
+    const absoluteDay = task.start_day + subTask.day
+    const adjustedDay = task.locked ? absoluteDay : absoluteDay - 1
+    return adjustedDay === dayOffset
+  })
 }
 
 // Check if cell has sub-tasks
